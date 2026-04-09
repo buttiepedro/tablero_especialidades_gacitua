@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Tablero de especialidades</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}" />
+</head>
+<body>
+  <main>
+    <h1>Tablero de especialidades</h1>
+    <section id="login-section" class="card">
+      <h2>Inicio de sesión</h2>
+      <form id="login-form">
+        <label>
+          Usuario
+          <input type="text" id="username" autocomplete="username" required />
+        </label>
+        <label>
+          Contraseña
+          <input type="password" id="password" autocomplete="current-password" required />
+        </label>
+        <button type="submit">Entrar</button>
+      </form>
+      <p id="login-error" class="hint"></p>
+    </section>
+
+    <section id="app-section" class="card hidden">
+      <div class="toolbar">
+        <p>Autenticado como <strong id="user-name">administrador</strong>.</p>
+        <button id="logout">Cerrar sesión</button>
+      </div>
+      <p class="hint">
+        Actualizá la lista de especialidades haciendo un POST a <code>/sync/especialidades</code> con
+        <code>{ "especialidades": ["Cardiología", "Pediatría"] }</code>. Las columnas "Activo" y
+        "Descripción" las gestionás desde la tabla.
+      </p>
+      <div class="table-wrapper">
+        <table>
+          <thead>
+            <tr>
+              <th>Especialidad</th>
+              <th>Activo</th>
+              <th>Descripción</th>
+              <th>Guardar</th>
+            </tr>
+          </thead>
+          <tbody id="table-body"></tbody>
+        </table>
+      </div>
+      <p id="table-status" class="hint"></p>
+    </section>
+  </main>
+  <script src="{{ url_for('static', filename='app.js') }}"></script>
+</body>
+</html>
