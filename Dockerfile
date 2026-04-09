@@ -12,9 +12,10 @@ RUN pip install --upgrade pip && \
 COPY . .
 
 RUN addgroup --system app && adduser --system --group app
+RUN mkdir -p /nonexistent && chown app:app /nonexistent
 
 EXPOSE 5000
 
 USER app
 
-CMD ["gunicorn", "--control", "none", "--bind", "0.0.0.0:5000", "app:app"]
+CMD ["gunicorn", "--bind", "0.0.0.0:5000", "app:app"]
