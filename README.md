@@ -45,7 +45,7 @@ Este endpoint reemplaza las filas existentes, así que si querés conservar una 
 
 ## Docker / deploy en EasyPanel
 
-1. Copiá `.env.example` a `.env` y completá las variables.
+1. Copiá `.env.example` a `.env` y completá las variables. Si estás apuntando a Postgres, la URL debe empezar con `postgresql://` (o `postgresql+psycopg2://`) y el contenedor ya incluye el driver `psycopg2-binary`.
 2. Construí la imagen:
    ```bash
 docker build -t tablero-especialidades .
