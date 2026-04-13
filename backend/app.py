@@ -1,13 +1,15 @@
 import os
 from datetime import datetime, timedelta
 from functools import wraps
+from hashlib import sha256
 from pathlib import Path
 
 import jwt
 from dotenv import load_dotenv
-from flask import Flask, jsonify, render_template, request
+from flask import Flask, jsonify, request
 from flask_cors import CORS
 from flask_sqlalchemy import SQLAlchemy
+from sqlalchemy import text
 
 load_dotenv()
 
@@ -31,6 +33,42 @@ class Specialidad(db.Model):
     activo = db.Column(db.Boolean, nullable=False, default=False)
     descripcion = db.Column(db.Text, default='')
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
+class SchemaMeta(db.Model):
+    __tablename__ = 'schema_meta'
+    id = db.Column(db.Integer, primary_key=True)
+    schema_hash = db.Column(db.String, nullable=False)
+
+
+def _schema_path() -> Path:
+    return Path(__file__).resolve().parent / 'db' / 'schema.sql'
+
+
+def _load_schema_script():
+    path = _schema_path()
+    raw = path.read_text()
+    statements = [stmt.strip() for stmt in raw.split(';') if stmt.strip()]
+    return sha256(raw.encode()).hexdigest(), statements
+
+
+def ensure_schema():
+    with app.app_context():
+        SchemaMeta.__table__.create(db.engine, checkfirst=True)
+        current_hash, statements = _load_schema_script()
+        meta = SchemaMeta.query.first()
+        if meta and meta.schema_hash == current_hash:
+            return
+
+        with db.engine.begin() as conn:
+            for stmt in statements:
+                conn.execute(text(stmt))
+
+        if meta:
+            meta.schema_hash = current_hash
+        else:
+            db.session.add(SchemaMeta(schema_hash=current_hash))
+        db.session.commit()
 
 
 def _ensure_database_path():
@@ -74,10 +112,6 @@ def requires_auth(func):
 
     return decorated
 
-
-@app.route('/')
-def home():
-    return render_template('index.html')
 
 
 @app.route('/login', methods=['POST'])
@@ -154,6 +188,7 @@ def health():
 
 _ensure_database_path()
 _create_tables()
+ensure_schema()
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=int(os.environ.get('PORT', 5000)))

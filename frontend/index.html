@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Tablero de especialidades</title>
-  <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}" />
+  <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
   <main>
@@ -32,8 +32,8 @@
       </div>
       <p class="hint">
         Actualizá la lista de especialidades haciendo un POST a <code>/sync/especialidades</code> con
-        <code>{ "especialidades": ["Cardiología", "Pediatría"] }</code>. Las columnas "Activo" y
-        "Descripción" las gestionás desde la tabla.
+        <code>{ "especialidades": ["Cardiología", "Pediatría"] }</code>. Guarda las columnas "Activo" y
+        "Descripción" desde la tabla.
       </p>
       <div class="table-wrapper">
         <table>
@@ -51,6 +51,7 @@
       <p id="table-status" class="hint"></p>
     </section>
   </main>
-  <script src="{{ url_for('static', filename='app.js') }}"></script>
+  <script src="config.js"></script>
+  <script src="app.js"></script>
 </body>
 </html>

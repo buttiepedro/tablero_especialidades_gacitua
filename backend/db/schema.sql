@@ -1,0 +1,15 @@
+DROP TABLE IF EXISTS item;
+DROP TABLE IF EXISTS "order";
+
+CREATE TABLE "order" (
+ id SERIAL PRIMARY KEY,
+ status VARCHAR(50) DEFAULT 'pending'
+);
+
+CREATE TABLE item (
+ id SERIAL PRIMARY KEY,
+ order_id INTEGER REFERENCES "order"(id),
+ product VARCHAR(255),
+ quantity INTEGER,
+ picked BOOLEAN DEFAULT FALSE
+);

@@ -1,72 +1,66 @@
-# Tablero de especialidades (Gacitúa)
+# Tablero de especialidades — arquitectura separada
 
-Una pequeña aplicación para gestionar el listado de especialidades médicas. La lista de `Especialidad` se actualiza automáticamente mediante la API de sincronización, mientras que los campos `Activo` y `Descripción` se mantienen manualmente desde la tabla que se muestra al iniciar sesión.
+Este proyecto quedó dividido en dos módulos independientes:
 
-## Stack
-- Flask + Flask-SQLAlchemy (SQLite por defecto, se puede apuntar a cualquier `DATABASE_URL`).
-- JWT simple para proteger todos los endpoints.
-- UI mínima en HTML/CSS/JS que requiere login y muestra la tabla con las tres columnas solicitadas.
-- Dockerfile listo para desplegar en EasyPanel o cualquier servicio que ejecute contenedores.
+- `backend/` → API Flask + Socket.IO que gestiona órdenes y emite eventos.
+- `frontend/` → Single Page App estática (HTML/JS) que consume la API y muestra el tablero.
 
-## Variables de entorno (copiá `.env.example` a `.env`)
+## Backend (`backend/`)
 
-| Variable | Descripción |
+El backend ejecuta Flask + Flask-SocketIO sobre Gunicorn + Eventlet. La carpeta contiene:
+
+- `app.py`: entrypoint que crea la app mediante `create_app()` y levanta `socketio` en 0.0.0.0.
+- `service/`: módulos separados para extensiones (`extensions.py`), modelos (`models.py`), rutas (`routes.py`) y sincronización del esquema (`schema.py`).
+- `db/schema.sql`: DDL usada por `ensure_schema()` para recrear la tabla cuando cambia.
+- `requirements.txt` y `Dockerfile` específicos.
+
+Variables de entorno relevantes:
+
+| Variable | Uso |
 | --- | --- |
-| `ADMIN_USER` | Usuario que podrá loguearse en la interfaz y consumir la API. |
-| `ADMIN_PASSWORD` | Contraseña del administrador. |
-| `SECRET_KEY` | Clave secreta para firmar los tokens JWT. |
-| `DATABASE_URL` | Cadena de conexión SQLAlchemy (por defecto `sqlite:///data/especialidades.db`). |
+| `DATABASE_URL` | Cadena SQLAlchemy hacia Postgres (por ejemplo `postgresql://user:password@host:5432/db`). |
+| `FLASK_ENV` | Ambiente (solo impacta el flag `debug` en el entrypoint). |
+| `SECRET_KEY` | Clave secreta para JWT y seguridad del app. |
 
-## Endpoints
-
-| Ruta | Método | Descripción |
-| --- | --- | --- |
-| `POST /login` | JSON `{ username, password }` | Devuelve un token JWT válido por 12h si las credenciales de `.env` coinciden. |
-| `GET /especialidades` | — | Lista todas las especialidades con sus columnas (`activo`, `descripcion`). Requiere `Authorization: Bearer <token>`. |
-| `PUT /especialidades/<id>` | JSON `{ activo?, descripcion? }` | Guarda los cambios en los campos manuales. |
-| `POST /sync/especialidades` | JSON `{ "especialidades": ["Cardiología", ...] }` | Reemplaza la lista de especialidades por la enviada; las nuevas se crean y las que no vienen se eliminan. |
-| `GET /health` | — | Salud básica del servicio (útil para monitoreo). |
-
-## UI
-
-1. Entrá a la raíz (`/`), completá usuario/contraseña y presioná "Entrar".
-2. El tablero mostrará las especialidades sincronizadas y te dejará marcar `Activo` y escribir una `Descripción` para cada una.
-3. Guardá cada fila presionando el botón "Guardar" correspondiente.
-
-## Sincronización diaria
-
-Tu proceso diario debe llamar a `POST /sync/especialidades` con el array completo de especialidades actuales. Ejemplo de cuerpo:
-
-```json
-{ "especialidades": ["Cardiología", "Pediatría", "Medicina Interna"] }
-```
-
-Este endpoint reemplaza las filas existentes, así que si querés conservar una descripción o estado para una especialidad que ya no existe en la lista, guardala manualmente antes de eliminarla.
-
-## Docker / deploy en EasyPanel
-
-1. Copiá `.env.example` a `.env` y completá las variables. Si estás apuntando a Postgres, la URL debe empezar con `postgresql://` (o `postgresql+psycopg2://`) y el contenedor ya incluye el driver `psycopg2-binary`.
-2. Construí la imagen:
-   ```bash
-docker build -t tablero-especialidades .
-```
-3. Ejecutá el contenedor exponiendo el puerto 5000 y pasando las variables:
-   ```bash
-docker run -d -p 5000:5000 \
-  -e ADMIN_USER=pedro \
-  -e ADMIN_PASSWORD=secreto \
-  -e SECRET_KEY=otra-clave \
-  tablero-especialidades
-```
-4. EasyPanel puede consumir esta misma imagen apuntando al `Dockerfile` y exponiendo el puerto 5000.
-
-## Primer push (cuando lo tengas todo listo)
+Para construir y correr la imagen backend:
 
 ```bash
-cd tablero_especialidades_gacitua
-git add .
-git commit -m "Inicial: tablero de especialidades"
-git push origin main
+cd backend
+docker build -t tablero-backend .
+docker run -p 5000:5000 \
+  -e DATABASE_URL=... \
+  -e SECRET_KEY=... \
+  tablero-backend
 ```
 
-Acordate de generar un token y usarlo como contraseña si lo hacés desde la línea de comandos.
+El contenedor arranca con Gunicorn sobre `backend.app:app`, escucha en `0.0.0.0:5000` y usa Eventlet para Socket.IO.
+
+## Frontend (`frontend/`)
+
+El frontend es una SPA liviana que exhibe la tabla de especialidades. Archivos:
+
+- `index.html`, `app.js`, `styles.css` y `config.js` (este último se reescribe al arranque con la URL real de la API).
+- `docker-entrypoint.sh` genera `config.js` a partir de la variable `API_URL` y luego arranca Nginx.
+- `Dockerfile` copia los assets y expone el puerto 80.
+
+Variables de entorno:
+
+| Variable | Uso |
+| --- | --- |
+| `API_URL` | URL pública donde corre el backend (ej. `https://tablero-backend...`). |
+
+Para crear la imagen del frontend:
+
+```bash
+cd frontend
+docker build -t tablero-frontend .
+docker run -p 80:80 -e API_URL=https://tablero-backend... tablero-frontend
+```
+
+## Flujo típico de despliegue
+
+1. Rebuild del backend (`docker build backend/ ...`) con la nueva imagen y push si necesitás un registry.
+2. Rebuild del frontend (`docker build frontend/ ...`), con `API_URL` apuntando al dominio final del backend.
+3. Configurar EasyPanel o el orquestador para levantar ambas imágenes y exponer sus puertos.
+
+Si querés que te arme los comandos exactos para tu entorno EasyPanel (incluyendo variables), avisame y te los dejo listos.
