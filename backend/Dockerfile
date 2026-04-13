@@ -13,6 +13,7 @@ COPY . .
 
 RUN addgroup --system app && adduser --system --group app
 RUN mkdir -p /nonexistent && chown app:app /nonexistent
+RUN mkdir -p /nonexistent/.gunicorn && chown -R app:app /nonexistent/.gunicorn
 
 EXPOSE 5000
 
