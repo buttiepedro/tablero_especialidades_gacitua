@@ -121,3 +121,40 @@ textarea {
   color: #475569;
   font-size: 0.9rem;
 }
+
+.tabs {
+  display: flex;
+  gap: 0.5rem;
+  margin-top: 1rem;
+}
+
+.tab-button {
+  flex: 1;
+  border: 1px solid #cbd5f5;
+  border-radius: 8px;
+  padding: 0.5rem;
+  background: #eef2ff;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.2s ease, border-color 0.2s ease;
+}
+
+.tab-button.active {
+  background: #2563eb;
+  color: #fff;
+  border-color: #2563eb;
+}
+
+.panel {
+  margin-top: 1rem;
+}
+
+.panel.hidden {
+  display: none;
+}
+
+.form-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 1rem;
+}

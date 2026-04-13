@@ -30,25 +30,53 @@
         <p>Autenticado como <strong id="user-name">administrador</strong>.</p>
         <button id="logout">Cerrar sesión</button>
       </div>
-      <p class="hint">
-        Actualizá la lista de especialidades haciendo un POST a <code>/sync/especialidades</code> con
-        <code>{ "especialidades": ["Cardiología", "Pediatría"] }</code>. Guarda las columnas "Activo" y
-        "Descripción" desde la tabla.
-      </p>
-      <div class="table-wrapper">
-        <table>
-          <thead>
-            <tr>
-              <th>Especialidad</th>
-              <th>Activo</th>
-              <th>Descripción</th>
-              <th>Guardar</th>
-            </tr>
-          </thead>
-          <tbody id="table-body"></tbody>
-        </table>
+      <div class="tabs">
+        <button class="tab-button active" data-target="general">General</button>
+        <button class="tab-button" data-target="especialidades">Especialidades</button>
       </div>
-      <p id="table-status" class="hint"></p>
+      <div id="general-panel" class="panel">
+        <form id="clinic-form" class="form-grid">
+          <label>
+            Descripción de la clínica
+            <textarea id="clinic-description" rows="4"></textarea>
+          </label>
+          <label>
+            Ubicación (Dirección)
+            <input type="text" id="clinic-address" />
+          </label>
+          <label>
+            URL de ubicación
+            <input type="url" id="clinic-location-url" />
+          </label>
+          <label>
+            Página web
+            <input type="url" id="clinic-website" />
+          </label>
+          <button type="submit">Guardar información</button>
+        </form>
+        <p id="clinic-status" class="hint"></p>
+      </div>
+      <div id="especialidades-panel" class="panel hidden">
+        <p class="hint">
+          Actualizá la lista de especialidades haciendo un POST a <code>/sync/especialidades</code> con
+          <code>{ "especialidades": ["Cardiología", "Pediatría"] }</code>. Guarda las columnas "Activo" y
+          "Descripción" desde esta tabla.
+        </p>
+        <div class="table-wrapper">
+          <table>
+            <thead>
+              <tr>
+                <th>Especialidad</th>
+                <th>Activo</th>
+                <th>Descripción</th>
+                <th>Guardar</th>
+              </tr>
+            </thead>
+            <tbody id="table-body"></tbody>
+          </table>
+        </div>
+        <p id="table-status" class="hint"></p>
+      </div>
     </section>
   </main>
   <script src="config.js"></script>

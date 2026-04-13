@@ -13,3 +13,14 @@ CREATE TABLE item (
  quantity INTEGER,
  picked BOOLEAN DEFAULT FALSE
 );
+
+DROP TABLE IF EXISTS clinic_info;
+
+CREATE TABLE clinic_info (
+ id SERIAL PRIMARY KEY,
+ descripcion TEXT,
+ direccion VARCHAR(255),
+ ubicacion_url VARCHAR(255),
+ pagina_web VARCHAR(255),
+ updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);

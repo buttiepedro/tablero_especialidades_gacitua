@@ -41,6 +41,15 @@ class SchemaMeta(db.Model):
     schema_hash = db.Column(db.String, nullable=False)
 
 
+class ClinicInfo(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    descripcion = db.Column(db.Text, default='')
+    direccion = db.Column(db.String(255), default='')
+    ubicacion_url = db.Column(db.String(255), default='')
+    pagina_web = db.Column(db.String(255), default='')
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
 def _schema_path() -> Path:
     return Path(__file__).resolve().parent / 'db' / 'schema.sql'
 
@@ -175,6 +184,41 @@ def sync_especialidades():
 
     db.session.commit()
     return jsonify({'imported': len(cleaned)})
+
+
+@app.route('/clinic', methods=['GET'])
+@requires_auth
+def get_clinic():
+    info = ClinicInfo.query.first()
+    if not info:
+        info = ClinicInfo()
+        db.session.add(info)
+        db.session.commit()
+    return jsonify({
+        'descripcion': info.descripcion,
+        'direccion': info.direccion,
+        'ubicacion_url': info.ubicacion_url,
+        'pagina_web': info.pagina_web,
+    })
+
+
+@app.route('/clinic', methods=['PUT'])
+@requires_auth
+def update_clinic():
+    data = request.get_json(force=True, silent=True) or {}
+    info = ClinicInfo.query.first() or ClinicInfo()
+    info.descripcion = data.get('descripcion', info.descripcion)
+    info.direccion = data.get('direccion', info.direccion)
+    info.ubicacion_url = data.get('ubicacion_url', info.ubicacion_url)
+    info.pagina_web = data.get('pagina_web', info.pagina_web)
+    db.session.add(info)
+    db.session.commit()
+    return jsonify({
+        'descripcion': info.descripcion,
+        'direccion': info.direccion,
+        'ubicacion_url': info.ubicacion_url,
+        'pagina_web': info.pagina_web,
+    })
 
 
 @app.route('/health', methods=['GET'])

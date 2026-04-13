@@ -1,66 +1,106 @@
-# Tablero de especialidades — arquitectura separada
+# Tablero de especialidades — API + SPA separadas
 
-Este proyecto quedó dividido en dos módulos independientes:
+Este proyecto tiene dos servicios independientes, uno para la API (`backend/`) y otro para el frontend (`frontend/`). La aplicación permite loguearse, sincronizar las especialidades desde un workflow externo, marcar cada ítem como preparado y dejar una ficha general de la clínica (descripción, ubicación y página web).
 
-- `backend/` → API Flask + Socket.IO que gestiona órdenes y emite eventos.
-- `frontend/` → Single Page App estática (HTML/JS) que consume la API y muestra el tablero.
+## Arquitectura
+
+```
+frontend/   → SPA estática (Nginx) que consume la API REST
+backend/    → API Flask + Socket.IO (Gunicorn + Eventlet)
+db/         → Definición del esquema SQL usado por backend/schema.py
+```
+
+El frontend y el backend pueden desplegarse como contenedores separados y comunicarse mediante la variable `API_URL`.
+
+---
 
 ## Backend (`backend/`)
 
-El backend ejecuta Flask + Flask-SocketIO sobre Gunicorn + Eventlet. La carpeta contiene:
+### Características
 
-- `app.py`: entrypoint que crea la app mediante `create_app()` y levanta `socketio` en 0.0.0.0.
-- `service/`: módulos separados para extensiones (`extensions.py`), modelos (`models.py`), rutas (`routes.py`) y sincronización del esquema (`schema.py`).
-- `db/schema.sql`: DDL usada por `ensure_schema()` para recrear la tabla cuando cambia.
-- `requirements.txt` y `Dockerfile` específicos.
+- Autenticación sencilla con `ADMIN_USER`/`ADMIN_PASSWORD` definidos vía entorno.
+- Endpoints protegidos con JWT:
+  - `POST /login` → devuelve token.
+  - `GET /especialidades`, `PUT /especialidades/<id>` → listan y actualizan ítems.
+  - `POST /sync/especialidades` → reemplaza la lista de especialidades a partir de un array.
+  - `GET /clinic` y `PUT /clinic` → leen/actualizan la ficha general (descripción, dirección, URLs).
+  - `GET /health` → ruta de salud para monitorizar.
+- Socket.IO emite eventos `update` cuando se crea o se marca un ítem (los clientes pueden suscribirse a `socket.io` si lo desean).
+- `schema.py` calcula un hash del archivo SQL (`backend/db/schema.sql`) y ejecuta los DDL cuando cambia.
 
-Variables de entorno relevantes:
+### Esquema (`backend/db/schema.sql`)
 
-| Variable | Uso |
+Incluye tablas `order`, `item` y `clinic_info`. Cada vez que el script detecta una nueva versión del SQL borra y recrea dichas tablas y guarda el hash en `schema_meta`.
+
+### Variables de entorno (copia `backend/.env.example`)
+
+| Variable | Descripción |
 | --- | --- |
-| `DATABASE_URL` | Cadena SQLAlchemy hacia Postgres (por ejemplo `postgresql://user:password@host:5432/db`). |
-| `FLASK_ENV` | Ambiente (solo impacta el flag `debug` en el entrypoint). |
-| `SECRET_KEY` | Clave secreta para JWT y seguridad del app. |
+| `DATABASE_URL` | Cadena SQLAlchemy a Postgres (ej. `postgresql://user:pass@host:5432/db`). |
+| `ADMIN_USER` / `ADMIN_PASSWORD` | Credenciales para loguearse. |
+| `SECRET_KEY` | Clave secreta para firmar tokens. |
+| `FLASK_ENV` | Controla si el entrypoint corre en modo debug (solo afecta la bandera `debug`). |
 
-Para construir y correr la imagen backend:
+### Construcción y ejecución
 
 ```bash
 cd backend
 docker build -t tablero-backend .
-docker run -p 5000:5000 \
+docker run -d -p 5000:5000 \
   -e DATABASE_URL=... \
-  -e SECRET_KEY=... \
+  -e ADMIN_USER=admin \
+  -e ADMIN_PASSWORD=admin \
+  -e SECRET_KEY=secreto \
   tablero-backend
 ```
 
-El contenedor arranca con Gunicorn sobre `backend.app:app`, escucha en `0.0.0.0:5000` y usa Eventlet para Socket.IO.
+En EasyPanel podés usar esa imagen y exponer el puerto 5000. La imagen ya crea `/nonexistent/.gunicorn` para que el control socket funcione sin errores.
+
+---
 
 ## Frontend (`frontend/`)
 
-El frontend es una SPA liviana que exhibe la tabla de especialidades. Archivos:
+### Características
 
-- `index.html`, `app.js`, `styles.css` y `config.js` (este último se reescribe al arranque con la URL real de la API).
-- `docker-entrypoint.sh` genera `config.js` a partir de la variable `API_URL` y luego arranca Nginx.
-- `Dockerfile` copia los assets y expone el puerto 80.
+- Login con las mismas credenciales del backend.
+- Dos pestañas:
+  - **General:** completás la descripción de la clínica, dirección, URL de ubicación y página web. El `PUT /clinic` guarda esos datos.
+  - **Especialidades:** muestra la tabla de especialidades, permite marcar `Activo` y editar la descripción para cada una, y llama a los endpoints REST habituales.
+- `config.js` se genera al inicio con `API_URL` para que todas las llamadas HTTP apunten al backend correcto.
 
-Variables de entorno:
+### Variables y entorno
 
-| Variable | Uso |
+| Variable | Descripción |
 | --- | --- |
-| `API_URL` | URL pública donde corre el backend (ej. `https://tablero-backend...`). |
+| `API_URL` | URL pública del backend (ej. `https://tablero-backend...`). |
 
-Para crear la imagen del frontend:
+### Construcción y ejecución
 
 ```bash
 cd frontend
 docker build -t tablero-frontend .
-docker run -p 80:80 -e API_URL=https://tablero-backend... tablero-frontend
+docker run -d -p 80:80 -e API_URL=https://tablero-backend... tablero-frontend
 ```
 
-## Flujo típico de despliegue
+La imagen copia `index.html`, `app.js`, `styles.css` y usa un entrypoint que reescribe `config.js` según `API_URL` antes de correr Nginx.
 
-1. Rebuild del backend (`docker build backend/ ...`) con la nueva imagen y push si necesitás un registry.
-2. Rebuild del frontend (`docker build frontend/ ...`), con `API_URL` apuntando al dominio final del backend.
-3. Configurar EasyPanel o el orquestador para levantar ambas imágenes y exponer sus puertos.
+---
 
-Si querés que te arme los comandos exactos para tu entorno EasyPanel (incluyendo variables), avisame y te los dejo listos.
+## Despliegue en EasyPanel
+
+1. Subí la rama a GitHub (`git push origin main`).
+2. En EasyPanel configurá dos apps:
+   - `_tablero-backend`: apunta al contexto `backend/`, define las variables `DATABASE_URL`, `ADMIN_USER`, `ADMIN_PASSWORD`, `SECRET_KEY` y expone el puerto 5000.
+   - `_tablero-frontend`: apunta al contexto `frontend/`, define `API_URL` apuntando al backend y expone el puerto 80.
+3. Ambos servicios se conectan vía `API_URL` y el frontend obtiene automáticamente el dominio correcto gracias al `config.js` reescrito por el entrypoint.
+
+Si querés te paso también la lista completa de comandos para construir/pushear ambos contenedores y reiniciar los servicios en EasyPanel. ¿Querés que te los escriba? Te los mando en el próximo mensaje. Meanwhile, si vas a subir los cambios ahora, recordá usar `git add`, `git commit` y `git push` como te dije antes. Por si te olvidaste, te los repito:
+
+```bash
+cd tablero_especialidades_gacitua
+git add -A
+git commit -m "Split backend/frontend and add clinic info screen"
+git push origin main
+```
+
+Listo, avísame si querés que te prepare los comandos `docker build`/`docker push` con tus variables específicas.
