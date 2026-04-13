@@ -1,4 +1,5 @@
 const tokenKey = 'tablero-especialidades-token';
+const API = window.API_URL || 'http://localhost:5000';
 const loginSection = document.getElementById('login-section');
 const appSection = document.getElementById('app-section');
 const loginForm = document.getElementById('login-form');
@@ -31,7 +32,7 @@ loginForm.addEventListener('submit', async (event) => {
     loginError.textContent = 'Completá usuario y contraseña.';
     return;
   }
-  const response = await fetch('/login', {
+  const response = await fetch(`${API}/login`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ username, password })
@@ -71,7 +72,7 @@ async function loadEspecialidades() {
   }
   tableStatus.textContent = 'Cargando especialidades...';
   try {
-    const response = await fetch('/especialidades', {
+    const response = await fetch(`${API}/especialidades`, {
       headers: { Authorization: `Bearer ${token}` }
     });
     if (!response.ok) {
@@ -117,7 +118,7 @@ async function saveEspecialidad(id) {
     descripcion: textarea.value.trim()
   };
   tableStatus.textContent = 'Guardando...';
-  const response = await fetch(`/especialidades/${id}`, {
+  const response = await fetch(`${API}/especialidades/${id}`, {
     method: 'PUT',
     headers: {
       'Content-Type': 'application/json',
