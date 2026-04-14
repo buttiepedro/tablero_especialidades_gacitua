@@ -3,13 +3,13 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Tablero de especialidades</title>
+  <title>Login - Tablero de especialidades</title>
   <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
   <main>
     <h1>Tablero de especialidades</h1>
-    <section id="login-section" class="card">
+    <section class="card login-card">
       <h2>Inicio de sesión</h2>
       <form id="login-form">
         <label>
@@ -23,63 +23,14 @@
         <button type="submit">Entrar</button>
       </form>
       <p id="login-error" class="hint"></p>
-    </section>
-
-    <section id="app-section" class="card hidden">
-      <div class="toolbar">
-        <p>Autenticado como <strong id="user-name">administrador</strong>.</p>
-        <button id="logout">Cerrar sesión</button>
-      </div>
-      <div class="tabs">
-        <button class="tab-button active" data-target="general">General</button>
-        <button class="tab-button" data-target="especialidades">Especialidades</button>
-      </div>
-      <div id="general-panel" class="panel">
-        <form id="clinic-form" class="form-grid">
-          <label>
-            Descripción de la clínica
-            <textarea id="clinic-description" rows="4"></textarea>
-          </label>
-          <label>
-            Ubicación (Dirección)
-            <input type="text" id="clinic-address" />
-          </label>
-          <label>
-            URL de ubicación
-            <input type="url" id="clinic-location-url" />
-          </label>
-          <label>
-            Página web
-            <input type="url" id="clinic-website" />
-          </label>
-          <button type="submit">Guardar información</button>
-        </form>
-        <p id="clinic-status" class="hint"></p>
-      </div>
-      <div id="especialidades-panel" class="panel hidden">
-        <p class="hint">
-          Actualizá la lista de especialidades haciendo un POST a <code>/sync/especialidades</code> con
-          <code>{ "especialidades": ["Cardiología", "Pediatría"] }</code>. Guarda las columnas "Activo" y
-          "Descripción" desde esta tabla.
-        </p>
-        <div class="table-wrapper">
-          <table>
-            <thead>
-              <tr>
-                <th>Especialidad</th>
-                <th>Activo</th>
-                <th>Descripción</th>
-                <th>Guardar</th>
-              </tr>
-            </thead>
-            <tbody id="table-body"></tbody>
-          </table>
-        </div>
-        <p id="table-status" class="hint"></p>
-      </div>
+      <p class="hint">
+        Una vez logueado serás redirigido a la pantalla general, donde podés completar la descripción
+        y los datos de la clínica.
+      </p>
     </section>
   </main>
   <script src="config.js"></script>
-  <script src="app.js"></script>
+  <script src="shared.js"></script>
+  <script src="login.js"></script>
 </body>
 </html>

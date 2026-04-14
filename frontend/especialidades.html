@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Especialidades - Tablero de especialidades</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <main>
+    <header class="page-header">
+      <h1>Especialidades</h1>
+      <button id="logout-link" class="secondary">Cerrar sesión</button>
+    </header>
+    <nav class="page-nav">
+      <a href="general.html">General</a>
+      <a href="especialidades.html" class="active">Especialidades</a>
+    </nav>
+    <section class="card">
+      <p class="hint">
+        Actualizá la lista con `POST /sync/especialidades` y marcá cada ítem con "Activo" y "Descripción".
+      </p>
+      <div class="table-wrapper">
+        <table>
+          <thead>
+            <tr>
+              <th>Especialidad</th>
+              <th>Activo</th>
+              <th>Descripción</th>
+              <th>Guardar</th>
+            </tr>
+          </thead>
+          <tbody id="table-body"></tbody>
+        </table>
+      </div>
+      <p id="table-status" class="hint"></p>
+    </section>
+  </main>
+  <script src="config.js"></script>
+  <script src="shared.js"></script>
+  <script src="especialidades.js"></script>
+</body>
+</html>

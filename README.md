@@ -5,7 +5,7 @@ Este proyecto tiene dos servicios independientes, uno para la API (`backend/`) y
 ## Arquitectura
 
 ```
-frontend/   → SPA estática (Nginx) que consume la API REST
+frontend/   → SPA estática (Nginx) que consume la API REST (login.html, general.html y especialidades.html)
 backend/    → API Flask + Socket.IO (Gunicorn + Eventlet)
 db/         → Definición del esquema SQL usado por backend/schema.py
 ```

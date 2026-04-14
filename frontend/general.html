@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>General - Tablero de especialidades</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <main>
+    <header class="page-header">
+      <h1>Información general de la clínica</h1>
+      <button id="logout" class="secondary">Cerrar sesión</button>
+    </header>
+    <nav class="page-nav">
+      <a href="general.html" class="active">General</a>
+      <a href="especialidades.html">Especialidades</a>
+    </nav>
+    <section class="card">
+      <form id="clinic-form" class="form-grid">
+        <label>
+          Descripción de la clínica
+          <textarea id="clinic-description" rows="4"></textarea>
+        </label>
+        <label>
+          Ubicación (Dirección)
+          <input type="text" id="clinic-address" />
+        </label>
+        <label>
+          URL de ubicación
+          <input type="url" id="clinic-location-url" />
+        </label>
+        <label>
+          Página web
+          <input type="url" id="clinic-website" />
+        </label>
+        <button type="submit">Guardar</button>
+      </form>
+      <p id="clinic-status" class="hint"></p>
+    </section>
+  </main>
+  <script src="config.js"></script>
+  <script src="shared.js"></script>
+  <script src="general.js"></script>
+</body>
+</html>
