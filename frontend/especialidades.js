@@ -33,9 +33,6 @@ function renderTable(items) {
     const row = document.createElement('tr');
     row.innerHTML = `
       <td>${escapeHTML(item.especialidad)}</td>
-      <td class="checkbox-cell"><input type="checkbox" data-id="${item.id}" ${
-      item.activo ? 'checked' : ''
-    } /></td>
       <td><textarea data-desc="${item.id}">${escapeHTML(item.descripcion || '')}</textarea></td>
       <td><button data-save="${item.id}">Guardar</button></td>
     `;
@@ -47,10 +44,8 @@ function renderTable(items) {
 }
 
 async function saveEspecialidad(id) {
-  const checkbox = document.querySelector(`input[type='checkbox'][data-id='${id}']`);
   const textarea = document.querySelector(`textarea[data-desc='${id}']`);
   const payload = {
-    activo: checkbox.checked,
     descripcion: textarea.value.trim(),
   };
   tableStatus.textContent = 'Guardando...';
