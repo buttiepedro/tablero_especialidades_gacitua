@@ -3,9 +3,11 @@ FROM nginx:alpine
 COPY index.html /usr/share/nginx/html/index.html
 COPY general.html /usr/share/nginx/html/general.html
 COPY especialidades.html /usr/share/nginx/html/especialidades.html
+COPY faqs.html /usr/share/nginx/html/faqs.html
 COPY login.js /usr/share/nginx/html/login.js
 COPY general.js /usr/share/nginx/html/general.js
 COPY especialidades.js /usr/share/nginx/html/especialidades.js
+COPY faqs.js /usr/share/nginx/html/faqs.js
 COPY shared.js /usr/share/nginx/html/shared.js
 COPY styles.css /usr/share/nginx/html/styles.css
 COPY config.js /usr/share/nginx/html/config.js

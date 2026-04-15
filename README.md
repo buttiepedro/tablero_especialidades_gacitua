@@ -22,9 +22,10 @@ El frontend y el backend pueden desplegarse como contenedores separados y comuni
 - Endpoints protegidos con JWT:
   - `POST /login` → devuelve token.
   - `GET /especialidades`, `PUT /especialidades/<id>` → listan y actualizan ítems.
-  - `POST /sync/especialidades` → reemplaza la lista de especialidades a partir de un array.
-  - `GET /clinic` y `PUT /clinic` → leen/actualizan la ficha general (descripción, dirección, URLs).
-  - `GET /health` → ruta de salud para monitorizar.
+- `POST /sync/especialidades` → reemplaza la lista de especialidades a partir de un array.
+- `GET /clinic` y `PUT /clinic` → leen/actualizan la ficha general (descripción, dirección, URLs).
+- `GET /faqs`, `POST /faqs`, `DELETE /faqs/<id>` → CRUD de preguntas frecuentes.
+- `GET /health` → ruta de salud para monitorizar.
 - Socket.IO emite eventos `update` cuando se crea o se marca un ítem (los clientes pueden suscribirse a `socket.io` si lo desean).
 - `schema.py` calcula un hash del archivo SQL (`backend/db/schema.sql`) y ejecuta los DDL cuando cambia.
 
@@ -66,6 +67,7 @@ En EasyPanel podés usar esa imagen y exponer el puerto 5000. La imagen ya crea 
 - Dos pestañas:
   - **General:** completás la descripción de la clínica, dirección, URL de ubicación y página web. El `PUT /clinic` guarda esos datos.
   - **Especialidades:** muestra la tabla de especialidades, permite marcar `Activo` y editar la descripción para cada una, y llama a los endpoints REST habituales.
+- **FAQs:** podés agregar y eliminar pares de pregunta/respuesta que se almacenan en la tabla `faqs`.
 - `config.js` se genera al inicio con `API_URL` para que todas las llamadas HTTP apunten al backend correcto.
 
 ### Variables y entorno

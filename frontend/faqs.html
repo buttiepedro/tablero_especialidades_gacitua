@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>FAQs - Tablero de especialidades</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <main>
+    <header class="page-header">
+      <div>
+        <p class="hero-label">GACITUA BOT</p>
+        <h1>Preguntas frecuentes</h1>
+      </div>
+      <button id="logout" class="secondary">Cerrar sesión</button>
+    </header>
+    <nav class="page-nav">
+      <a href="general.html">General</a>
+      <a href="especialidades.html">Especialidades</a>
+      <a href="faqs.html" class="active">FAQs</a>
+    </nav>
+    <section class="card">
+      <form id="faq-form" class="form-grid">
+        <label>
+          Pregunta
+          <input type="text" id="faq-question" required />
+        </label>
+        <label>
+          Respuesta
+          <textarea id="faq-answer" rows="3" required></textarea>
+        </label>
+        <button type="submit">Guardar FAQ</button>
+      </form>
+      <p id="faq-status" class="hint"></p>
+      <div class="faq-list" id="faq-list"></div>
+    </section>
+  </main>
+  <script src="config.js"></script>
+  <script src="shared.js"></script>
+  <script src="faqs.js"></script>
+</body>
+</html>

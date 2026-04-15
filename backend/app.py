@@ -50,6 +50,13 @@ class ClinicInfo(db.Model):
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
 
+class FAQ(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    question = db.Column(db.String(1024), nullable=False)
+    answer = db.Column(db.Text, nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+
 def _schema_path() -> Path:
     return Path(__file__).resolve().parent / 'db' / 'schema.sql'
 
@@ -219,6 +226,44 @@ def update_clinic():
         'ubicacion_url': info.ubicacion_url,
         'pagina_web': info.pagina_web,
     })
+
+
+@app.route('/faqs', methods=['GET'])
+@requires_auth
+def list_faqs():
+    faqs = FAQ.query.order_by(FAQ.created_at.desc()).all()
+    return jsonify([
+        {
+            'id': faq.id,
+            'question': faq.question,
+            'answer': faq.answer,
+            'created_at': faq.created_at.isoformat(),
+        }
+        for faq in faqs
+    ])
+
+
+@app.route('/faqs', methods=['POST'])
+@requires_auth
+def create_faq():
+    data = request.get_json(force=True, silent=True) or {}
+    question = data.get('question', '').strip()
+    answer = data.get('answer', '').strip()
+    if not question or not answer:
+        return jsonify({'error': 'Pregunta y respuesta son obligatorias'}), 400
+    faq = FAQ(question=question, answer=answer)
+    db.session.add(faq)
+    db.session.commit()
+    return jsonify({'id': faq.id}), 201
+
+
+@app.route('/faqs/<int:faq_id>', methods=['DELETE'])
+@requires_auth
+def delete_faq(faq_id):
+    faq = FAQ.query.get_or_404(faq_id)
+    db.session.delete(faq)
+    db.session.commit()
+    return '', 204
 
 
 @app.route('/health', methods=['GET'])
