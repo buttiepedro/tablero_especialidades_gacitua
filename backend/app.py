@@ -30,7 +30,6 @@ db = SQLAlchemy(app)
 class Specialidad(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     nombre = db.Column(db.String(255), unique=True, nullable=False)
-    activo = db.Column(db.Boolean, nullable=False, default=False)
     descripcion = db.Column(db.Text, default='')
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
@@ -147,7 +146,7 @@ def login():
 def list_especialidades():
     items = Specialidad.query.order_by(Specialidad.nombre).all()
     payload = [
-        {'id': item.id, 'especialidad': item.nombre, 'activo': item.activo, 'descripcion': item.descripcion}
+        {'id': item.id, 'especialidad': item.nombre, 'descripcion': item.descripcion}
         for item in items
     ]
     return jsonify(payload)
@@ -158,12 +157,10 @@ def list_especialidades():
 def update_especialidad(item_id):
     item = Specialidad.query.get_or_404(item_id)
     data = request.get_json(force=True, silent=True) or {}
-    if 'activo' in data:
-        item.activo = bool(data['activo'])
     if 'descripcion' in data:
         item.descripcion = str(data['descripcion'])
     db.session.commit()
-    return jsonify({'id': item.id, 'activo': item.activo, 'descripcion': item.descripcion})
+    return jsonify({'id': item.id, 'descripcion': item.descripcion})
 
 
 @app.route('/sync/especialidades', methods=['POST'])

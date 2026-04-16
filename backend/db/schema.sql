@@ -1,17 +1,10 @@
-DROP TABLE IF EXISTS item;
-DROP TABLE IF EXISTS "order";
+DROP TABLE IF EXISTS specialidades;
 
-CREATE TABLE "order" (
+CREATE TABLE specialidades (
  id SERIAL PRIMARY KEY,
- status VARCHAR(50) DEFAULT 'pending'
-);
-
-CREATE TABLE item (
- id SERIAL PRIMARY KEY,
- order_id INTEGER REFERENCES "order"(id),
- product VARCHAR(255),
- quantity INTEGER,
- picked BOOLEAN DEFAULT FALSE
+ nombre VARCHAR(255) UNIQUE NOT NULL,
+ descripcion TEXT DEFAULT '',
+ updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
 DROP TABLE IF EXISTS clinic_info;
