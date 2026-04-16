@@ -1,6 +1,6 @@
-DROP TABLE IF EXISTS specialidades;
+DROP TABLE IF EXISTS specialidad;
 
-CREATE TABLE specialidades (
+CREATE TABLE specialidad (
  id SERIAL PRIMARY KEY,
  nombre VARCHAR(255) UNIQUE NOT NULL,
  descripcion TEXT DEFAULT '',
