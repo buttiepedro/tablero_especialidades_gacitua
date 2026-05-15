@@ -12,6 +12,10 @@ async def get_current_user(
 ) -> UserInDB:
     token = request.cookies.get("access_token")
     if not token:
+        auth_header = request.headers.get("Authorization", "")
+        if auth_header.startswith("Bearer "):
+            token = auth_header[7:]
+    if not token:
         raise HTTPException(status_code=401, detail="Not authenticated")
     payload = decode_token(token)
     if payload is None:
