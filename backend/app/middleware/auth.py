@@ -1,9 +1,9 @@
 from fastapi import Request, HTTPException, Depends
 from motor.motor_asyncio import AsyncIOMotorDatabase
-from backend.app.db.mongo import get_database
-from backend.app.utils.jwt_utils import decode_token
-from backend.app.services import auth_service
-from backend.app.models.user import UserInDB
+from app.db.mongo import get_database
+from app.utils.jwt_utils import decode_token
+from app.services import auth_service
+from app.models.user import UserInDB
 
 
 async def get_current_user(

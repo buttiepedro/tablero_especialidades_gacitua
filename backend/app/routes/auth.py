@@ -1,12 +1,12 @@
 from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from motor.motor_asyncio import AsyncIOMotorDatabase
-from backend.app.db.mongo import get_database
-from backend.app.schemas.auth import LoginRequest, RegisterRequest, MeResponse
-from backend.app.services import auth_service
-from backend.app.utils.jwt_utils import decode_token
-from backend.app.middleware.auth import get_current_user
-from backend.app.models.user import UserInDB
-from backend.app.config.settings import settings
+from app.db.mongo import get_database
+from app.schemas.auth import LoginRequest, RegisterRequest, MeResponse
+from app.services import auth_service
+from app.utils.jwt_utils import decode_token
+from app.middleware.auth import get_current_user
+from app.models.user import UserInDB
+from app.config.settings import settings
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
@@ -56,7 +56,7 @@ async def login(
     user = await auth_service.authenticate(db, body.username, body.password)
     if not user:
         raise HTTPException(status_code=401, detail="Invalid credentials")
-    from backend.app.utils.jwt_utils import create_token
+    from app.utils.jwt_utils import create_token
     token = create_token(user.username)
     response.set_cookie(value=token, **COOKIE_OPTS)
     return {"ok": True, "access_token": token}

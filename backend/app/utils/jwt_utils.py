@@ -1,6 +1,6 @@
 from datetime import datetime, timedelta, timezone
 from jose import jwt, JWTError
-from backend.app.config.settings import settings
+from app.config.settings import settings
 
 
 def create_token(username: str) -> str:

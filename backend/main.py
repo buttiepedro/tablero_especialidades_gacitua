@@ -1,12 +1,12 @@
 import logging
-from backend.app.routes import auth, clinic, especialidades
+from app.routes import auth, clinic, especialidades
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from pymongo.errors import ServerSelectionTimeoutError, ConnectionFailure
-from backend.app.db.mongo import lifespan, get_database
-from backend.app.config.settings import settings
-from backend.app.routes import faqs
+from app.db.mongo import lifespan, get_database
+from app.config.settings import settings
+from app.routes import faqs
 
 logging.basicConfig(
     level=logging.INFO,
@@ -41,7 +41,7 @@ app.include_router(faqs.router)
 
 @app.get("/health")
 async def health():
-    from backend.app.db.mongo import _db_available
+    from app.db.mongo import _db_available
     if not _db_available:
         return JSONResponse(
             status_code=503,

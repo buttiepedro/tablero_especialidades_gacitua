@@ -1,6 +1,6 @@
 from datetime import datetime, timezone
 from motor.motor_asyncio import AsyncIOMotorDatabase
-from backend.app.models.clinic import ClinicInfo
+from app.models.clinic import ClinicInfo
 
 
 def _doc_to_clinic(doc: dict) -> ClinicInfo:

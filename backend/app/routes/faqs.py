@@ -1,9 +1,9 @@
 from fastapi import APIRouter, Depends, HTTPException
 from motor.motor_asyncio import AsyncIOMotorDatabase
-from backend.app.db.mongo import get_database
-from backend.app.middleware.auth import get_current_user
-from backend.app.schemas.faq import FAQCreateRequest, FAQResponse
-from backend.app.services import faq_service
+from app.db.mongo import get_database
+from app.middleware.auth import get_current_user
+from app.schemas.faq import FAQCreateRequest, FAQResponse
+from app.services import faq_service
 
 router = APIRouter(prefix="/faqs", tags=["faqs"])
 

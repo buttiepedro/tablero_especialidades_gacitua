@@ -2,7 +2,7 @@ from datetime import datetime, timezone
 import bcrypt
 from bson import ObjectId
 from motor.motor_asyncio import AsyncIOMotorDatabase
-from backend.app.models.user import UserInDB
+from app.models.user import UserInDB
 
 
 def _doc_to_user(doc: dict) -> UserInDB:

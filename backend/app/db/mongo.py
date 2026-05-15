@@ -2,7 +2,7 @@ import logging
 from contextlib import asynccontextmanager
 from fastapi import HTTPException
 from motor.motor_asyncio import AsyncIOMotorClient, AsyncIOMotorDatabase
-from backend.app.config.settings import settings
+from app.config.settings import settings
 
 logger = logging.getLogger(__name__)
 

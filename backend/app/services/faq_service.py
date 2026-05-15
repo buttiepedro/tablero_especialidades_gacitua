@@ -1,7 +1,7 @@
 from datetime import datetime, timezone
 from bson import ObjectId
 from motor.motor_asyncio import AsyncIOMotorDatabase
-from backend.app.models.faq import FAQ
+from app.models.faq import FAQ
 
 
 def _doc_to_faq(doc: dict) -> FAQ:

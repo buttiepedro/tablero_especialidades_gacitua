@@ -1,9 +1,9 @@
 from fastapi import APIRouter, Depends
 from motor.motor_asyncio import AsyncIOMotorDatabase
-from backend.app.db.mongo import get_database
-from backend.app.middleware.auth import get_current_user
-from backend.app.schemas.clinic import ClinicUpdateRequest, ClinicResponse
-from backend.app.services import clinic_service
+from app.db.mongo import get_database
+from app.middleware.auth import get_current_user
+from app.schemas.clinic import ClinicUpdateRequest, ClinicResponse
+from app.services import clinic_service
 
 router = APIRouter(tags=["clinic"])
 

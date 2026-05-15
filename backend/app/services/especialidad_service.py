@@ -1,7 +1,7 @@
 from datetime import datetime, timezone
 from bson import ObjectId
 from motor.motor_asyncio import AsyncIOMotorDatabase
-from backend.app.models.especialidad import Especialidad
+from app.models.especialidad import Especialidad
 
 
 def _doc_to_especialidad(doc: dict) -> Especialidad:

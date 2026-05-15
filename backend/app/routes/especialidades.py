@@ -1,14 +1,14 @@
 from fastapi import APIRouter, Depends, HTTPException
 from motor.motor_asyncio import AsyncIOMotorDatabase
-from backend.app.db.mongo import get_database
-from backend.app.middleware.auth import get_current_user
-from backend.app.schemas.especialidad import (
+from app.db.mongo import get_database
+from app.middleware.auth import get_current_user
+from app.schemas.especialidad import (
     EspecialidadResponse,
     EspecialidadUpdateRequest,
     SyncRequest,
     SyncResponse,
 )
-from backend.app.services import especialidad_service
+from app.services import especialidad_service
 
 router = APIRouter(tags=["especialidades"])
 
