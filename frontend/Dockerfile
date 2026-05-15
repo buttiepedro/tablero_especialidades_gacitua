@@ -1,15 +1,18 @@
 # Stage 1: install deps
-FROM node:20-alpine AS deps
+FROM node:22-alpine AS deps
 
+ENV CI=true
 RUN corepack enable && corepack prepare pnpm@latest --activate
 
 WORKDIR /app
 COPY package.json pnpm-lock.yaml ./
-RUN pnpm install --frozen-lockfile
+RUN pnpm install --frozen-lockfile --ignore-scripts && \
+    pnpm rebuild sharp
 
 # Stage 2: build
-FROM node:20-alpine AS builder
+FROM node:22-alpine AS builder
 
+ENV CI=true
 RUN corepack enable && corepack prepare pnpm@latest --activate
 
 WORKDIR /app
@@ -26,10 +29,10 @@ ENV INTERNAL_API_URL=$INTERNAL_API_URL
 ENV NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL
 ENV NEXT_PUBLIC_APP_URL=$NEXT_PUBLIC_APP_URL
 
-RUN pnpm build
+RUN mkdir -p public && pnpm build
 
 # Stage 3: runtime
-FROM node:20-alpine AS runner
+FROM node:22-alpine AS runner
 
 ENV NODE_ENV=production \
     NEXT_TELEMETRY_DISABLED=1

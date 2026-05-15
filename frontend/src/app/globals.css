@@ -310,6 +310,117 @@ input::placeholder, textarea::placeholder {
   .faq-card .btn-danger { align-self: flex-start; }
 }
 
+/* ── Horarios ────────────────────────────────── */
+.horarios-list { display: flex; flex-direction: column; gap: 3px; }
+
+.horario-block { border-radius: var(--radius-sm); }
+
+.horario-main-row,
+.horario-tarde-row {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.45rem 0.6rem;
+  transition: background var(--transition);
+}
+
+.horario-block--open .horario-main-row { background: var(--accent-dim); border-radius: var(--radius-sm); }
+.horario-block--open.horario-block--split .horario-main-row { border-radius: var(--radius-sm) var(--radius-sm) 0 0; }
+.horario-block--open.horario-block--split .horario-tarde-row {
+  background: rgba(55,219,222,0.05);
+  border-top: 1px solid rgba(55,219,222,0.1);
+  border-radius: 0 0 var(--radius-sm) var(--radius-sm);
+}
+
+/* Day toggle pill */
+.day-toggle-pill {
+  width: 102px;
+  flex-shrink: 0;
+  padding: 0.3rem 0;
+  border-radius: 999px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  cursor: pointer;
+  border: 1.5px solid var(--border);
+  background: transparent;
+  color: var(--text-muted);
+  transition: border-color 0.15s, background 0.15s, color 0.15s;
+  font-family: "DM Sans", sans-serif;
+  text-align: center;
+}
+
+.day-toggle-pill--active {
+  border-color: var(--accent);
+  background: var(--accent);
+  color: var(--bg);
+}
+
+.day-toggle-pill:hover:not(.day-toggle-pill--active) {
+  border-color: rgba(55,219,222,0.4);
+  color: var(--text);
+}
+
+/* Turno spacer + label */
+.horario-tarde-spacer { width: 102px; flex-shrink: 0; }
+
+.horario-turno-label {
+  width: 52px;
+  flex-shrink: 0;
+  font-size: 0.67rem;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  font-weight: 500;
+}
+
+/* Time range */
+.horario-time-range {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  flex: 1;
+  min-width: 0;
+}
+
+.horario-time-sep {
+  font-size: 0.78rem;
+  color: var(--text-muted);
+  flex-shrink: 0;
+}
+
+/* Split turno button */
+.btn-split-turno {
+  font-size: 0.7rem;
+  padding: 0.22rem 0.55rem;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  white-space: nowrap;
+  font-family: "DM Sans", sans-serif;
+  transition: border-color 0.15s, color 0.15s;
+  flex-shrink: 0;
+}
+
+.btn-split-turno:hover { border-color: var(--accent-border); color: var(--accent); }
+.btn-split-turno--active { border-color: var(--accent-border); color: var(--accent); }
+
+/* Closed label */
+.horario-closed-label {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  opacity: 0.45;
+  letter-spacing: 0.04em;
+}
+
+@media (max-width: 600px) {
+  .day-toggle-pill { width: 84px; font-size: 0.74rem; }
+  .horario-tarde-spacer { width: 84px; }
+  .horario-turno-label { width: 40px; font-size: 0.62rem; }
+  .btn-split-turno { font-size: 0.65rem; padding: 0.18rem 0.45rem; }
+}
+
 /* ── Animation ───────────────────────────────── */
 @keyframes fade-up {
   from { opacity: 0; transform: translateY(8px); }

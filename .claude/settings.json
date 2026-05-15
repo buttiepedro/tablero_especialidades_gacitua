@@ -23,7 +23,9 @@
       "Bash(pnpm build *)",
       "Bash(timeout 8 uvicorn main:app)",
       "Bash(timeout 8 /home/johnitrueno/.pyenv/versions/3.12.12/envs/especialidades_gacitua/bin/uvicorn main:app)",
-      "Bash(python3 -c \"import sys,json; d=json.load\\(sys.stdin\\)[0]; env=d['Config']['Env']; [print\\(e\\) for e in env if 'MONGO' in e or 'mongo' in e]\")"
+      "Bash(python3 -c \"import sys,json; d=json.load\\(sys.stdin\\)[0]; env=d['Config']['Env']; [print\\(e\\) for e in env if 'MONGO' in e or 'mongo' in e]\")",
+      "Bash(python3 -m json.tool)",
+      "Bash(npx tsc *)"
     ],
     "additionalDirectories": [
       "/tmp"

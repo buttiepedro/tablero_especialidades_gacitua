@@ -1,6 +1,6 @@
 from datetime import datetime, timezone
 from motor.motor_asyncio import AsyncIOMotorDatabase
-from app.models.clinic import ClinicInfo
+from app.models.clinic import ClinicInfo, Horarios
 
 
 def _doc_to_clinic(doc: dict) -> ClinicInfo:
@@ -9,6 +9,7 @@ def _doc_to_clinic(doc: dict) -> ClinicInfo:
         direccion=doc.get("direccion", ""),
         ubicacion_url=doc.get("ubicacion_url", ""),
         pagina_web=doc.get("pagina_web", ""),
+        horarios=Horarios.model_validate(doc.get("horarios", {})),
         updated_at=doc.get("updated_at"),
     )
 
@@ -21,6 +22,7 @@ async def get_clinic(db: AsyncIOMotorDatabase) -> ClinicInfo:
             "direccion": "",
             "ubicacion_url": "",
             "pagina_web": "",
+            "horarios": {},
             "updated_at": datetime.now(timezone.utc),
         }
         await db["clinic_info"].insert_one(empty)

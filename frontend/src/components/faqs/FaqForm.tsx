@@ -46,7 +46,7 @@ export default function FaqForm() {
             id="faq-question"
             name="question"
             type="text"
-            placeholder="¿Cuál es el horario de atención?"
+            placeholder="¿Aceptan obras sociales?"
             onChange={() => setStatus(null)}
           />
         </div>
@@ -57,7 +57,7 @@ export default function FaqForm() {
             id="faq-answer"
             name="answer"
             rows={3}
-            placeholder="Atendemos de lunes a viernes…"
+            placeholder="Sí, trabajamos con las principales obras sociales y prepagas…"
             onChange={() => setStatus(null)}
           />
         </div>
