@@ -232,19 +232,21 @@ export default function ClinicForm({ initialData }: Props) {
 
                   {dia.abierto ? (
                     <>
-                      {dia.divide_turno && (
-                        <span className="horario-turno-label">Mañana</span>
-                      )}
-                      <div className="horario-time-range">
-                        <TimeInput
-                          value={dia.inicio}
-                          onChange={(v) => handleTimeChange(key, "inicio", v ?? "")}
-                        />
-                        <span className="horario-time-sep">—</span>
-                        <TimeInput
-                          value={dia.cierre}
-                          onChange={(v) => handleTimeChange(key, "cierre", v ?? "")}
-                        />
+                      <div className="horario-times-group">
+                        {dia.divide_turno && (
+                          <span className="horario-turno-label">Mañana</span>
+                        )}
+                        <div className="horario-time-range">
+                          <TimeInput
+                            value={dia.inicio}
+                            onChange={(v) => handleTimeChange(key, "inicio", v ?? "")}
+                          />
+                          <span className="horario-time-sep">—</span>
+                          <TimeInput
+                            value={dia.cierre}
+                            onChange={(v) => handleTimeChange(key, "cierre", v ?? "")}
+                          />
+                        </div>
                       </div>
                       <button
                         type="button"
