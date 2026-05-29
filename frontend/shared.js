@@ -1,6 +1,6 @@
 (function () {
   const tokenKey = 'tablero-especialidades-token';
-  const API = window.API_URL || 'http://localhost:5000';
+  const API = window.API_URL;
 
   function getToken() {
     return localStorage.getItem(tokenKey);
