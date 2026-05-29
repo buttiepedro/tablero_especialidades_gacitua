@@ -23,9 +23,10 @@ app.config['SQLALCHEMY_DATABASE_URI'] = DATABASE_URL
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'dev-secret')
 
-if DB_SCHEMA and DATABASE_URL.startswith('postgresql'):
+if DATABASE_URL.startswith('postgresql'):
+    _schema = DB_SCHEMA or 'public'
     app.config['SQLALCHEMY_ENGINE_OPTIONS'] = {
-        'connect_args': {'options': f'-csearch_path={DB_SCHEMA}'}
+        'connect_args': {'options': f'-csearch_path={_schema}'}
     }
 
 ADMIN_USER = os.environ.get('ADMIN_USER', 'admin')
