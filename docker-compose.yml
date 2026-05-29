@@ -1,6 +1,7 @@
 services:
   backend:
-    build: ./backend
+    build:
+      context: "https://github.com/buttiepedro/tablero_especialidades_gacitua.git#main:backend"
     restart: unless-stopped
     environment:
       - DATABASE_URL=${DATABASE_URL:-sqlite:///data/especialidades.db}
@@ -18,7 +19,8 @@ services:
       start_period: 10s
 
   frontend:
-    build: ./frontend
+    build:
+      context: "https://github.com/buttiepedro/tablero_especialidades_gacitua.git#main:frontend"
     restart: unless-stopped
     environment:
       - API_URL=${API_URL:-http://localhost:5000}
