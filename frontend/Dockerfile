@@ -11,6 +11,7 @@ COPY faqs.js /usr/share/nginx/html/faqs.js
 COPY shared.js /usr/share/nginx/html/shared.js
 COPY styles.css /usr/share/nginx/html/styles.css
 COPY config.js /usr/share/nginx/html/config.js
+COPY nginx.conf /etc/nginx/conf.d/default.conf
 COPY docker-entrypoint.sh /docker-entrypoint.sh
 
 RUN chmod +x /docker-entrypoint.sh
