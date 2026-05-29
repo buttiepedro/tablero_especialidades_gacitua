@@ -1,6 +1,6 @@
 services:
   backend:
-    build: ./backend
+    image: ghcr.io/buttiepedro/tablero-backend:latest
     restart: unless-stopped
     environment:
       - DATABASE_URL=${DATABASE_URL:-sqlite:///data/especialidades.db}
@@ -18,7 +18,7 @@ services:
       start_period: 10s
 
   frontend:
-    build: ./frontend
+    image: ghcr.io/buttiepedro/tablero-frontend:latest
     restart: unless-stopped
     environment:
       - API_URL=${API_URL:-http://localhost:5000}
