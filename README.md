@@ -1,108 +1,102 @@
 # Tablero de especialidades — API + SPA separadas
 
-Este proyecto tiene dos servicios independientes, uno para la API (`backend/`) y otro para el frontend (`frontend/`). La aplicación permite loguearse, sincronizar las especialidades desde un workflow externo, marcar cada ítem como preparado y dejar una ficha general de la clínica (descripción, ubicación y página web).
+Dos servicios independientes: una API REST (`backend/`) y un frontend estático (`frontend/`). Permite loguearse, gestionar especialidades, editar la ficha de la clínica y administrar preguntas frecuentes.
 
 ## Arquitectura
 
 ```
-frontend/   → SPA estática (Nginx) que consume la API REST (login.html, general.html y especialidades.html)
-backend/    → API Flask + Socket.IO (Gunicorn + Eventlet)
-db/         → Definición del esquema SQL usado por backend/schema.py
+frontend/   → SPA estática (Nginx) que consume la API REST
+backend/    → API Flask (Gunicorn)
 ```
 
-El frontend y el backend pueden desplegarse como contenedores separados y comunicarse mediante la variable `API_URL`.
+El frontend y el backend se despliegan como contenedores separados y se comunican mediante la variable `API_URL`.
 
 ---
 
 ## Backend (`backend/`)
 
-### Características
+### Variables de entorno
 
-- Autenticación sencilla con `ADMIN_USER`/`ADMIN_PASSWORD` definidos vía entorno.
-- Endpoints protegidos con JWT:
-  - `POST /login` → devuelve token.
-  - `GET /especialidades`, `PUT /especialidades/<id>` → listan y actualizan ítems.
-- `POST /sync/especialidades` → reemplaza la lista de especialidades a partir de un array.
-- `GET /clinic` y `PUT /clinic` → leen/actualizan la ficha general (descripción, dirección, URLs).
-- `GET /faqs`, `POST /faqs`, `DELETE /faqs/<id>` → CRUD de preguntas frecuentes.
-- `GET /health` → ruta de salud para monitorizar.
-- Socket.IO emite eventos `update` cuando se crea o se marca un ítem (los clientes pueden suscribirse a `socket.io` si lo desean).
-- `schema.py` calcula un hash del archivo SQL (`backend/db/schema.sql`) y ejecuta los DDL cuando cambia.
+| Variable | Descripción | Por defecto |
+| --- | --- | --- |
+| `DATABASE_URL` | Cadena SQLAlchemy (SQLite o PostgreSQL). | `sqlite:///data/especialidades.db` |
+| `ADMIN_USER` | Usuario para loguearse. | `admin` |
+| `ADMIN_PASSWORD` | Contraseña para loguearse. | `changeme` |
+| `SECRET_KEY` | Clave secreta para firmar tokens JWT. | `dev-secret` |
 
-### Esquema (`backend/db/schema.sql`)
+### Endpoints
 
-Incluye tablas `order`, `item` y `clinic_info`. Cada vez que el script detecta una nueva versión del SQL borra y recrea dichas tablas y guarda el hash en `schema_meta`.
+| Método | Ruta | Descripción |
+| --- | --- | --- |
+| `POST` | `/login` | Autenticación. Devuelve token JWT (12 h). |
+| `GET` | `/health` | Health check (sin auth). |
+| `GET` | `/especialidades` | Lista especialidades. |
+| `PUT` | `/especialidades/<id>` | Actualiza descripción de una especialidad. |
+| `POST` | `/sync/especialidades` | Reemplaza la lista completa de especialidades. |
+| `GET` / `PUT` | `/clinic` | Lee / actualiza la ficha de la clínica. |
+| `GET` / `POST` | `/faqs` | Lista / crea preguntas frecuentes. |
+| `DELETE` | `/faqs/<id>` | Elimina una pregunta frecuente. |
 
-### Variables de entorno (copia `backend/.env.example`)
+### Esquema de base de datos
 
-| Variable | Descripción |
-| --- | --- |
-| `DATABASE_URL` | Cadena SQLAlchemy a Postgres (ej. `postgresql://user:pass@host:5432/db`). |
-| `ADMIN_USER` / `ADMIN_PASSWORD` | Credenciales para loguearse. |
-| `SECRET_KEY` | Clave secreta para firmar tokens. |
-| `FLASK_ENV` | Controla si el entrypoint corre en modo debug (solo afecta la bandera `debug`). |
-
-### Construcción y ejecución
-
-```bash
-cd backend
-docker build -t tablero-backend .
-docker run -d -p 5000:5000 \
-  -e DATABASE_URL=... \
-  -e ADMIN_USER=admin \
-  -e ADMIN_PASSWORD=admin \
-  -e SECRET_KEY=secreto \
-  tablero-backend
-```
-
-En EasyPanel podés usar esa imagen y exponer el puerto 5000. La imagen ya crea `/nonexistent/.gunicorn` para que el control socket funcione sin errores.
+Tablas: `specialidad`, `clinic_info`, `faqs`, `schema_meta`.  
+La app calcula un hash SHA-256 de `db/schema.sql` y ejecuta los DDL automáticamente si el esquema cambió.
 
 ---
 
 ## Frontend (`frontend/`)
 
-### Características
-
-- Login con las mismas credenciales del backend.
-- Dos pestañas:
-  - **General:** completás la descripción de la clínica, dirección, URL de ubicación y página web. El `PUT /clinic` guarda esos datos.
-  - **Especialidades:** muestra la tabla de especialidades, permite marcar `Activo` y editar la descripción para cada una, y llama a los endpoints REST habituales.
-- **FAQs:** podés agregar y eliminar pares de pregunta/respuesta que se almacenan en la tabla `faqs`.
-- `config.js` se genera al inicio con `API_URL` para que todas las llamadas HTTP apunten al backend correcto.
-
-### Variables y entorno
+### Variables de entorno
 
 | Variable | Descripción |
 | --- | --- |
-| `API_URL` | URL pública del backend (ej. `https://tablero-backend...`). |
+| `API_URL` | URL **pública** del backend, accesible desde el navegador (ej. `https://api.tudominio.com`). |
 
-### Construcción y ejecución
+`API_URL` se inyecta en `config.js` al inicio del contenedor mediante `docker-entrypoint.sh`.
+
+### Páginas
+
+- **Login** (`index.html`)
+- **General** (`general.html`) — edición de descripción, dirección y URLs de la clínica.
+- **Especialidades** (`especialidades.html`) — tabla editable de especialidades.
+- **FAQs** (`faqs.html`) — alta y baja de preguntas frecuentes.
+
+---
+
+## Ejecución con Docker Compose (local / Portainer)
+
+### 1. Configurar variables de entorno
 
 ```bash
-cd frontend
-docker build -t tablero-frontend .
-docker run -d -p 80:80 -e API_URL=https://tablero-backend... tablero-frontend
+cp .env.example .env
+# Editá .env con tus valores reales
 ```
 
-La imagen copia `index.html`, `app.js`, `styles.css` y usa un entrypoint que reescribe `config.js` según `API_URL` antes de correr Nginx.
+> **Importante:** `API_URL` debe ser la URL **desde la que el navegador** alcanza al backend.  
+> En local: `http://localhost:5000`.  
+> En producción detrás de un proxy: la URL pública del servicio backend.
+
+### 2. Construir y levantar
+
+```bash
+docker compose up -d --build
+```
+
+- Frontend disponible en `http://localhost:80`
+- Backend disponible en `http://localhost:5000`
+
+### 3. Usar en Portainer
+
+1. En Portainer andá a **Stacks → Add stack**.
+2. Pegá el contenido de `docker-compose.yml` o apuntá al repositorio.
+3. En la sección **Environment variables** cargá los mismos valores que tenés en `.env`.
+4. Hacé click en **Deploy the stack**.
 
 ---
 
 ## Despliegue en EasyPanel
 
 1. Subí la rama a GitHub (`git push origin main`).
-2. En EasyPanel configurá dos apps:
-   - `_tablero-backend`: apunta al contexto `backend/`, define las variables `DATABASE_URL`, `ADMIN_USER`, `ADMIN_PASSWORD`, `SECRET_KEY` y expone el puerto 5000.
-   - `_tablero-frontend`: apunta al contexto `frontend/`, define `API_URL` apuntando al backend y expone el puerto 80.
-3. Ambos servicios se conectan vía `API_URL` y el frontend obtiene automáticamente el dominio correcto gracias al `config.js` reescrito por el entrypoint.
-
-Si querés te paso también la lista completa de comandos para construir/pushear ambos contenedores y reiniciar los servicios en EasyPanel. ¿Querés que te los escriba? Te los mando en el próximo mensaje. Meanwhile, si vas a subir los cambios ahora, recordá usar `git add`, `git commit` y `git push` como te dije antes. Por si te olvidaste, te los repito:
-
-```bash
-cd tablero_especialidades_gacitua
-git add -A
-git commit -m "Split backend/frontend and add clinic info screen"
-git push origin main
-```
-
-Listo, avísame si querés que te prepare los comandos `docker build`/`docker push` con tus variables específicas.
+2. Configurá dos apps:
+   - `tablero-backend`: contexto `backend/`, variables `DATABASE_URL`, `ADMIN_USER`, `ADMIN_PASSWORD`, `SECRET_KEY`, puerto 5000.
+   - `tablero-frontend`: contexto `frontend/`, variable `API_URL` apuntando al backend, puerto 80.

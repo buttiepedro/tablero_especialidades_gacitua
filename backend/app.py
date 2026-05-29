@@ -17,9 +17,16 @@ app = Flask(__name__, static_folder="static", template_folder="templates")
 CORS(app)
 
 DATABASE_URL = os.environ.get('DATABASE_URL', 'sqlite:///data/especialidades.db')
+DB_SCHEMA = os.environ.get('DB_SCHEMA', '')
+
 app.config['SQLALCHEMY_DATABASE_URI'] = DATABASE_URL
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'dev-secret')
+
+if DB_SCHEMA and DATABASE_URL.startswith('postgresql'):
+    app.config['SQLALCHEMY_ENGINE_OPTIONS'] = {
+        'connect_args': {'options': f'-csearch_path={DB_SCHEMA}'}
+    }
 
 ADMIN_USER = os.environ.get('ADMIN_USER', 'admin')
 ADMIN_PASSWORD = os.environ.get('ADMIN_PASSWORD', 'changeme')
