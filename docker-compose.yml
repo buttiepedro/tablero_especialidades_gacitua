@@ -1,13 +1,12 @@
 services:
   backend:
-    build:
-      context: "https://github.com/buttiepedro/tablero_especialidades_gacitua.git#main:backend"
+    build: ./backend
     restart: unless-stopped
     environment:
-      - DATABASE_URL=${DATABASE_URL:-sqlite:///data/especialidades.db}
+      - DATABASE_URL=${DATABASE_URL}
       - ADMIN_USER=${ADMIN_USER:-admin}
-      - ADMIN_PASSWORD=${ADMIN_PASSWORD:-changeme}
-      - SECRET_KEY=${SECRET_KEY:-dev-secret}
+      - ADMIN_PASSWORD=${ADMIN_PASSWORD}
+      - SECRET_KEY=${SECRET_KEY}
       - DB_SCHEMA=${DB_SCHEMA:-}
     ports:
       - "5000:5000"
@@ -19,11 +18,10 @@ services:
       start_period: 10s
 
   frontend:
-    build:
-      context: "https://github.com/buttiepedro/tablero_especialidades_gacitua.git#main:frontend"
+    build: ./frontend
     restart: unless-stopped
     environment:
-      - API_URL=${API_URL:-http://localhost:5000}
+      - API_URL=${API_URL}
     ports:
       - "80:80"
     depends_on:
