@@ -2,7 +2,12 @@ services:
   backend:
     build: ./backend
     restart: unless-stopped
-    env_file: .env
+    environment:
+      - DATABASE_URL=${DATABASE_URL:-sqlite:///data/especialidades.db}
+      - ADMIN_USER=${ADMIN_USER:-admin}
+      - ADMIN_PASSWORD=${ADMIN_PASSWORD:-changeme}
+      - SECRET_KEY=${SECRET_KEY:-dev-secret}
+      - DB_SCHEMA=${DB_SCHEMA:-}
     ports:
       - "5000:5000"
     healthcheck:
@@ -22,4 +27,3 @@ services:
     depends_on:
       backend:
         condition: service_healthy
-
