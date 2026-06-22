@@ -81,7 +81,7 @@ textarea {
 
 input:focus,
 textarea:focus {
-  border-color: #111;
+  border-color: #1B85F7;
   outline: none;
 }
 
@@ -94,7 +94,7 @@ textarea {
 button {
   border: none;
   border-radius: 3px;
-  background: #111;
+  background: #1B85F7;
   color: #fff;
   padding: 0.5rem 1rem;
   font-size: 0.8125rem;
@@ -169,8 +169,8 @@ button:hover {
 }
 
 .page-nav a.active {
-  color: #111;
-  border-bottom-color: #111;
+  color: #1B85F7;
+  border-bottom-color: #1B85F7;
 }
 
 /* ── Hero label ── */
@@ -179,7 +179,7 @@ button:hover {
   font-size: 0.6875rem;
   letter-spacing: 0.12em;
   text-transform: uppercase;
-  color: #aaa;
+  color: #1B85F7;
 }
 
 /* ── Hint ── */
@@ -256,8 +256,8 @@ td {
 }
 
 .tab-button.active {
-  color: #111;
-  border-bottom-color: #111;
+  color: #1B85F7;
+  border-bottom-color: #1B85F7;
 }
 
 .panel {
@@ -310,6 +310,16 @@ td {
 }
 
 /* ── Login page ── */
+body:has(.login-card) {
+  align-items: center;
+}
+
+body:has(.login-card) h1 {
+  display: none;
+}
+
 .login-card {
   max-width: 380px;
+  width: 100%;
+  align-self: center;
 }
