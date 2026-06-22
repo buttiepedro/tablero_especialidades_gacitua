@@ -9,7 +9,7 @@ from dotenv import load_dotenv
 from flask import Flask, jsonify, request
 from flask_cors import CORS
 from flask_sqlalchemy import SQLAlchemy
-from sqlalchemy import text
+from sqlalchemy import event, text
 
 load_dotenv()
 
@@ -33,6 +33,15 @@ ADMIN_USER = os.environ.get('ADMIN_USER', 'admin')
 ADMIN_PASSWORD = os.environ.get('ADMIN_PASSWORD', 'changeme')
 
 db = SQLAlchemy(app)
+
+if DATABASE_URL.startswith('postgresql'):
+    _schema = DB_SCHEMA or 'public'
+
+    @event.listens_for(db.engine, 'connect')
+    def _set_search_path(dbapi_conn, _):
+        cursor = dbapi_conn.cursor()
+        cursor.execute(f'SET search_path TO {_schema}')
+        cursor.close()
 
 
 class Specialidad(db.Model):
