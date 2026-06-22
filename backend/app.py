@@ -1,35 +1,116 @@
 import os
 from datetime import datetime, timedelta
 from functools import wraps
+from hashlib import sha256
+from pathlib import Path
 
 import jwt
-from bson import ObjectId
-from bson.errors import InvalidId
 from dotenv import load_dotenv
-from flask import Flask, abort, jsonify, request
+from flask import Flask, jsonify, request
 from flask_cors import CORS
-from pymongo import MongoClient
+from flask_sqlalchemy import SQLAlchemy
+from sqlalchemy import text
 
 load_dotenv()
 
 app = Flask(__name__, static_folder="static", template_folder="templates")
 CORS(app)
 
+DATABASE_URL = os.environ.get('DATABASE_URL', 'sqlite:///data/especialidades.db')
+DB_SCHEMA = os.environ.get('DB_SCHEMA', '')
+
+app.config['SQLALCHEMY_DATABASE_URI'] = DATABASE_URL
+app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'dev-secret')
+
+if DATABASE_URL.startswith('postgresql'):
+    _schema = DB_SCHEMA or 'public'
+    app.config['SQLALCHEMY_ENGINE_OPTIONS'] = {
+        'connect_args': {'options': f'-csearch_path={_schema}'}
+    }
 
 ADMIN_USER = os.environ.get('ADMIN_USER', 'admin')
 ADMIN_PASSWORD = os.environ.get('ADMIN_PASSWORD', 'changeme')
 
-MONGO_URL = os.environ.get('MONGO_URL', 'mongodb://mongo:27017/tablero')
-_client = MongoClient(MONGO_URL)
-_db = _client.get_default_database()
+db = SQLAlchemy(app)
 
 
-def _oid(id_str):
-    try:
-        return ObjectId(id_str)
-    except InvalidId:
-        abort(404)
+class Specialidad(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    nombre = db.Column(db.String(255), unique=True, nullable=False)
+    descripcion = db.Column(db.Text, default='')
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
+class SchemaMeta(db.Model):
+    __tablename__ = 'schema_meta'
+    id = db.Column(db.Integer, primary_key=True)
+    schema_hash = db.Column(db.String, nullable=False)
+
+
+class ClinicInfo(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    descripcion = db.Column(db.Text, default='')
+    direccion = db.Column(db.String(255), default='')
+    ubicacion_url = db.Column(db.String(255), default='')
+    pagina_web = db.Column(db.String(255), default='')
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
+class FAQ(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    question = db.Column(db.String(1024), nullable=False)
+    answer = db.Column(db.Text, nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+
+class TextoPredefinido(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    nombre = db.Column(db.String(255), nullable=False)
+    texto = db.Column(db.Text, nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+
+def _schema_path() -> Path:
+    return Path(__file__).resolve().parent / 'db' / 'schema.sql'
+
+
+def _load_schema_script():
+    path = _schema_path()
+    raw = path.read_text()
+    statements = [stmt.strip() for stmt in raw.split(';') if stmt.strip()]
+    return sha256(raw.encode()).hexdigest(), statements
+
+
+def ensure_schema():
+    with app.app_context():
+        SchemaMeta.__table__.create(db.engine, checkfirst=True)
+        current_hash, statements = _load_schema_script()
+        meta = SchemaMeta.query.first()
+        if meta and meta.schema_hash == current_hash:
+            return
+
+        with db.engine.begin() as conn:
+            for stmt in statements:
+                conn.execute(text(stmt))
+
+        if meta:
+            meta.schema_hash = current_hash
+        else:
+            db.session.add(SchemaMeta(schema_hash=current_hash))
+        db.session.commit()
+
+
+def _ensure_database_path():
+    if DATABASE_URL.startswith('sqlite:///'):
+        path = DATABASE_URL.replace('sqlite:///', '', 1)
+        if path:
+            Path(path).parent.mkdir(parents=True, exist_ok=True)
+
+
+def _create_tables():
+    with app.app_context():
+        db.create_all()
 
 
 def _generate_token():
@@ -58,7 +139,9 @@ def requires_auth(func):
         if not payload:
             return jsonify({'error': 'Invalid or expired token'}), 401
         return func(*args, **kwargs)
+
     return decorated
+
 
 
 @app.route('/login', methods=['POST'])
@@ -76,25 +159,23 @@ def login():
 @app.route('/especialidades', methods=['GET'])
 @requires_auth
 def list_especialidades():
-    items = list(_db.especialidades.find().sort('nombre', 1))
-    return jsonify([
-        {'id': str(i['_id']), 'especialidad': i['nombre'], 'descripcion': i.get('descripcion', '')}
-        for i in items
-    ])
+    items = Specialidad.query.order_by(Specialidad.nombre).all()
+    payload = [
+        {'id': item.id, 'especialidad': item.nombre, 'descripcion': item.descripcion}
+        for item in items
+    ]
+    return jsonify(payload)
 
 
-@app.route('/especialidades/<item_id>', methods=['PUT'])
+@app.route('/especialidades/<int:item_id>', methods=['PUT'])
 @requires_auth
 def update_especialidad(item_id):
+    item = Specialidad.query.get_or_404(item_id)
     data = request.get_json(force=True, silent=True) or {}
-    result = _db.especialidades.find_one_and_update(
-        {'_id': _oid(item_id)},
-        {'$set': {'descripcion': str(data.get('descripcion', ''))}},
-        return_document=True
-    )
-    if not result:
-        abort(404)
-    return jsonify({'id': str(result['_id']), 'descripcion': result.get('descripcion', '')})
+    if 'descripcion' in data:
+        item.descripcion = str(data['descripcion'])
+    db.session.commit()
+    return jsonify({'id': item.id, 'descripcion': item.descripcion})
 
 
 @app.route('/sync/especialidades', methods=['POST'])
@@ -108,28 +189,35 @@ def sync_especialidades():
     if not cleaned:
         return jsonify({'error': 'No se recibieron especialidades válidas'}), 400
 
+    existing = {item.nombre: item for item in Specialidad.query.all()}
+    received_set = set(cleaned)
+
     for name in cleaned:
-        _db.especialidades.update_one(
-            {'nombre': name},
-            {'$setOnInsert': {'nombre': name, 'descripcion': ''}},
-            upsert=True
-        )
-    _db.especialidades.delete_many({'nombre': {'$nin': cleaned}})
+        if name in existing:
+            continue
+        db.session.add(Specialidad(nombre=name))
+
+    # Remove specialties that are no longer reported
+    for obsolete in [item for item in existing.values() if item.nombre not in received_set]:
+        db.session.delete(obsolete)
+
+    db.session.commit()
     return jsonify({'imported': len(cleaned)})
 
 
 @app.route('/clinic', methods=['GET'])
 @requires_auth
 def get_clinic():
-    info = _db.clinic_info.find_one()
+    info = ClinicInfo.query.first()
     if not info:
-        _db.clinic_info.insert_one({'descripcion': '', 'direccion': '', 'ubicacion_url': '', 'pagina_web': ''})
-        info = _db.clinic_info.find_one()
+        info = ClinicInfo()
+        db.session.add(info)
+        db.session.commit()
     return jsonify({
-        'descripcion': info.get('descripcion', ''),
-        'direccion': info.get('direccion', ''),
-        'ubicacion_url': info.get('ubicacion_url', ''),
-        'pagina_web': info.get('pagina_web', ''),
+        'descripcion': info.descripcion,
+        'direccion': info.direccion,
+        'ubicacion_url': info.ubicacion_url,
+        'pagina_web': info.pagina_web,
     })
 
 
@@ -137,19 +225,33 @@ def get_clinic():
 @requires_auth
 def update_clinic():
     data = request.get_json(force=True, silent=True) or {}
-    fields = {k: data.get(k, '') for k in ('descripcion', 'direccion', 'ubicacion_url', 'pagina_web')}
-    _db.clinic_info.update_one({}, {'$set': fields}, upsert=True)
-    return jsonify(fields)
+    info = ClinicInfo.query.first() or ClinicInfo()
+    info.descripcion = data.get('descripcion', info.descripcion)
+    info.direccion = data.get('direccion', info.direccion)
+    info.ubicacion_url = data.get('ubicacion_url', info.ubicacion_url)
+    info.pagina_web = data.get('pagina_web', info.pagina_web)
+    db.session.add(info)
+    db.session.commit()
+    return jsonify({
+        'descripcion': info.descripcion,
+        'direccion': info.direccion,
+        'ubicacion_url': info.ubicacion_url,
+        'pagina_web': info.pagina_web,
+    })
 
 
 @app.route('/faqs', methods=['GET'])
 @requires_auth
 def list_faqs():
-    faqs = list(_db.faqs.find().sort('created_at', -1))
+    faqs = FAQ.query.order_by(FAQ.created_at.desc()).all()
     return jsonify([
-        {'id': str(f['_id']), 'question': f['question'], 'answer': f['answer'],
-         'created_at': f['created_at'].isoformat()}
-        for f in faqs
+        {
+            'id': faq.id,
+            'question': faq.question,
+            'answer': faq.answer,
+            'created_at': faq.created_at.isoformat(),
+        }
+        for faq in faqs
     ])
 
 
@@ -161,27 +263,33 @@ def create_faq():
     answer = data.get('answer', '').strip()
     if not question or not answer:
         return jsonify({'error': 'Pregunta y respuesta son obligatorias'}), 400
-    result = _db.faqs.insert_one({'question': question, 'answer': answer, 'created_at': datetime.utcnow()})
-    return jsonify({'id': str(result.inserted_id)}), 201
+    faq = FAQ(question=question, answer=answer)
+    db.session.add(faq)
+    db.session.commit()
+    return jsonify({'id': faq.id}), 201
 
 
-@app.route('/faqs/<faq_id>', methods=['DELETE'])
+@app.route('/faqs/<int:faq_id>', methods=['DELETE'])
 @requires_auth
 def delete_faq(faq_id):
-    result = _db.faqs.delete_one({'_id': _oid(faq_id)})
-    if result.deleted_count == 0:
-        abort(404)
+    faq = FAQ.query.get_or_404(faq_id)
+    db.session.delete(faq)
+    db.session.commit()
     return '', 204
 
 
 @app.route('/textos', methods=['GET'])
 @requires_auth
 def list_textos():
-    items = list(_db.textos.find().sort('created_at', -1))
+    items = TextoPredefinido.query.order_by(TextoPredefinido.created_at.desc()).all()
     return jsonify([
-        {'id': str(i['_id']), 'nombre': i['nombre'], 'texto': i['texto'],
-         'created_at': i['created_at'].isoformat()}
-        for i in items
+        {
+            'id': item.id,
+            'nombre': item.nombre,
+            'texto': item.texto,
+            'created_at': item.created_at.isoformat(),
+        }
+        for item in items
     ])
 
 
@@ -193,23 +301,33 @@ def create_texto():
     texto = data.get('texto', '').strip()
     if not nombre or not texto:
         return jsonify({'error': 'Nombre y texto son obligatorios'}), 400
-    result = _db.textos.insert_one({'nombre': nombre, 'texto': texto, 'created_at': datetime.utcnow()})
-    return jsonify({'id': str(result.inserted_id)}), 201
+    item = TextoPredefinido(nombre=nombre, texto=texto)
+    db.session.add(item)
+    db.session.commit()
+    return jsonify({'id': item.id}), 201
 
 
-@app.route('/textos/<texto_id>', methods=['DELETE'])
+@app.route('/textos/<int:texto_id>', methods=['DELETE'])
 @requires_auth
 def delete_texto(texto_id):
-    result = _db.textos.delete_one({'_id': _oid(texto_id)})
-    if result.deleted_count == 0:
-        abort(404)
+    item = TextoPredefinido.query.get_or_404(texto_id)
+    db.session.delete(item)
+    db.session.commit()
     return '', 204
 
 
 @app.route('/health', methods=['GET'])
 def health():
-    return jsonify({'ok': True, 'db': 'mongo', 'version': '0.2'})
+    return jsonify({
+        'ok': True,
+        'db': bool(db.engine),
+        'version': '0.1'
+    })
 
+
+_ensure_database_path()
+_create_tables()
+ensure_schema()
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=int(os.environ.get('PORT', 5000)))
