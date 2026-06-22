@@ -1,21 +1,28 @@
 services:
+  mongo:
+    image: mongo:7
+    restart: unless-stopped
+    volumes:
+      - mongo_data:/data/db
+
   backend:
     build: ./backend
     restart: unless-stopped
     environment:
-      - DATABASE_URL=${DATABASE_URL}
+      - MONGO_URL=${MONGO_URL:-mongodb://mongo:27017/tablero}
       - ADMIN_USER=${ADMIN_USER:-admin}
       - ADMIN_PASSWORD=${ADMIN_PASSWORD}
       - SECRET_KEY=${SECRET_KEY}
-      - DB_SCHEMA=${DB_SCHEMA:-}
     ports:
       - "5000:5000"
+    depends_on:
+      - mongo
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:5000/health')"]
       interval: 30s
       timeout: 10s
       retries: 3
-      start_period: 10s
+      start_period: 15s
 
   frontend:
     build: ./frontend
@@ -27,3 +34,6 @@ services:
     depends_on:
       backend:
         condition: service_healthy
+
+volumes:
+  mongo_data:
