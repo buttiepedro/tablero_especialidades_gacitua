@@ -34,16 +34,6 @@ ADMIN_PASSWORD = os.environ.get('ADMIN_PASSWORD', 'changeme')
 
 db = SQLAlchemy(app)
 
-if DATABASE_URL.startswith('postgresql'):
-    _schema = DB_SCHEMA or 'public'
-
-    @event.listens_for(db.engine, 'connect')
-    def _set_search_path(dbapi_conn, _):
-        cursor = dbapi_conn.cursor()
-        cursor.execute(f'SET search_path TO {_schema}')
-        cursor.close()
-
-
 class Specialidad(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     nombre = db.Column(db.String(255), unique=True, nullable=False)
@@ -119,6 +109,15 @@ def _ensure_database_path():
 
 def _create_tables():
     with app.app_context():
+        if DATABASE_URL.startswith('postgresql'):
+            _schema = DB_SCHEMA or 'public'
+
+            @event.listens_for(db.engine, 'connect')
+            def _set_search_path(dbapi_conn, _):
+                cursor = dbapi_conn.cursor()
+                cursor.execute(f'SET search_path TO {_schema}')
+                cursor.close()
+
         db.create_all()
 
 
