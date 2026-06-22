@@ -64,6 +64,13 @@ class FAQ(db.Model):
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
 
+class TextoPredefinido(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    nombre = db.Column(db.String(255), nullable=False)
+    texto = db.Column(db.Text, nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+
 def _schema_path() -> Path:
     return Path(__file__).resolve().parent / 'db' / 'schema.sql'
 
@@ -267,6 +274,44 @@ def create_faq():
 def delete_faq(faq_id):
     faq = FAQ.query.get_or_404(faq_id)
     db.session.delete(faq)
+    db.session.commit()
+    return '', 204
+
+
+@app.route('/textos', methods=['GET'])
+@requires_auth
+def list_textos():
+    items = TextoPredefinido.query.order_by(TextoPredefinido.created_at.desc()).all()
+    return jsonify([
+        {
+            'id': item.id,
+            'nombre': item.nombre,
+            'texto': item.texto,
+            'created_at': item.created_at.isoformat(),
+        }
+        for item in items
+    ])
+
+
+@app.route('/textos', methods=['POST'])
+@requires_auth
+def create_texto():
+    data = request.get_json(force=True, silent=True) or {}
+    nombre = data.get('nombre', '').strip()
+    texto = data.get('texto', '').strip()
+    if not nombre or not texto:
+        return jsonify({'error': 'Nombre y texto son obligatorios'}), 400
+    item = TextoPredefinido(nombre=nombre, texto=texto)
+    db.session.add(item)
+    db.session.commit()
+    return jsonify({'id': item.id}), 201
+
+
+@app.route('/textos/<int:texto_id>', methods=['DELETE'])
+@requires_auth
+def delete_texto(texto_id):
+    item = TextoPredefinido.query.get_or_404(texto_id)
+    db.session.delete(item)
     db.session.commit()
     return '', 204
 

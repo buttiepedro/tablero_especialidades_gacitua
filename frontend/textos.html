@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>FAQs - Tablero general</title>
+  <title>Textos predefinidos - Tablero general</title>
   <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
@@ -11,34 +11,34 @@
     <header class="page-header">
       <div>
         <p class="hero-label">GACITUA BOT</p>
-        <h1>Preguntas frecuentes</h1>
+        <h1>Textos predefinidos</h1>
       </div>
       <button id="logout" class="secondary">Cerrar sesión</button>
     </header>
     <nav class="page-nav">
       <a href="general.html">General</a>
       <a href="especialidades.html">Especialidades</a>
-      <a href="faqs.html" class="active">FAQs</a>
-      <a href="textos.html">Textos predefinidos</a>
+      <a href="faqs.html">FAQs</a>
+      <a href="textos.html" class="active">Textos predefinidos</a>
     </nav>
     <section class="card">
-      <form id="faq-form" class="form-grid">
+      <form id="texto-form" class="form-grid">
         <label>
-          Pregunta
-          <input type="text" id="faq-question" required />
+          Nombre
+          <input type="text" id="texto-nombre" required />
         </label>
         <label>
-          Respuesta
-          <textarea id="faq-answer" rows="3" required></textarea>
+          Texto
+          <textarea id="texto-cuerpo" rows="3" required></textarea>
         </label>
-        <button type="submit">Guardar FAQ</button>
+        <button type="submit">Guardar texto</button>
       </form>
-      <p id="faq-status" class="hint"></p>
-      <div class="faq-list" id="faq-list"></div>
+      <p id="texto-status" class="hint"></p>
+      <div class="faq-list" id="texto-list"></div>
     </section>
   </main>
   <script src="config.js"></script>
   <script src="shared.js"></script>
-  <script src="faqs.js"></script>
+  <script src="textos.js"></script>
 </body>
 </html>
