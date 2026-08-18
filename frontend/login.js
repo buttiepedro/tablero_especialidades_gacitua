@@ -1,5 +1,18 @@
 const loginForm = document.getElementById('login-form');
 const loginError = document.getElementById('login-error');
+const passwordInput = document.getElementById('password');
+const togglePasswordBtn = document.getElementById('toggle-password');
+const iconEye = togglePasswordBtn.querySelector('.icon-eye');
+const iconEyeOff = togglePasswordBtn.querySelector('.icon-eye-off');
+
+togglePasswordBtn.addEventListener('click', () => {
+  const isHidden = passwordInput.type === 'password';
+  passwordInput.type = isHidden ? 'text' : 'password';
+  iconEye.classList.toggle('hidden', isHidden);
+  iconEyeOff.classList.toggle('hidden', !isHidden);
+  togglePasswordBtn.setAttribute('aria-pressed', String(isHidden));
+  togglePasswordBtn.setAttribute('aria-label', isHidden ? 'Ocultar contraseña' : 'Mostrar contraseña');
+});
 
 loginForm.addEventListener('submit', async (event) => {
   event.preventDefault();

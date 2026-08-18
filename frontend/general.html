@@ -4,6 +4,9 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>General - Tablero general</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400;12..96,600;12..96,700;12..96,800&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
@@ -22,6 +25,35 @@
       <a href="textos.html">Textos predefinidos</a>
     </nav>
     <section class="card">
+      <div class="toolbar">
+        <p class="hint">Datos generales de la clínica que usa el bot.</p>
+        <button type="button" id="edit-clinic-btn">Editar</button>
+      </div>
+      <dl class="info-list">
+        <div class="info-row">
+          <dt>Descripción</dt>
+          <dd id="view-descripcion">—</dd>
+        </div>
+        <div class="info-row">
+          <dt>Dirección</dt>
+          <dd id="view-direccion">—</dd>
+        </div>
+        <div class="info-row">
+          <dt>URL de ubicación</dt>
+          <dd id="view-ubicacion-url">—</dd>
+        </div>
+        <div class="info-row">
+          <dt>Página web</dt>
+          <dd id="view-pagina-web">—</dd>
+        </div>
+      </dl>
+      <p id="clinic-status" class="hint"></p>
+    </section>
+  </main>
+
+  <div class="dialog-overlay hidden" id="clinic-dialog">
+    <div class="dialog" role="dialog" aria-modal="true" aria-labelledby="clinic-dialog-title">
+      <h2 id="clinic-dialog-title">Editar información general</h2>
       <form id="clinic-form" class="form-grid">
         <label>
           Descripción de la clínica
@@ -39,11 +71,14 @@
           Página web
           <input type="url" id="clinic-website" />
         </label>
-        <button type="submit">Guardar</button>
+        <div class="dialog-actions">
+          <button type="button" class="secondary" id="clinic-dialog-cancel">Cancelar</button>
+          <button type="submit">Guardar</button>
+        </div>
       </form>
-      <p id="clinic-status" class="hint"></p>
-    </section>
-  </main>
+    </div>
+  </div>
+
   <script src="config.js"></script>
   <script src="shared.js"></script>
   <script src="general.js"></script>

@@ -9,7 +9,7 @@ from dotenv import load_dotenv
 from flask import Flask, jsonify, request
 from flask_cors import CORS
 from flask_sqlalchemy import SQLAlchemy
-from sqlalchemy import event, text
+from sqlalchemy import event, inspect, text
 
 load_dotenv()
 
@@ -38,6 +38,7 @@ class Specialidad(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     nombre = db.Column(db.String(255), unique=True, nullable=False)
     descripcion = db.Column(db.Text, default='')
+    atendido_por_bot = db.Column(db.Boolean, default=True, nullable=False)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
 
@@ -102,9 +103,10 @@ def ensure_schema():
 
 def _ensure_database_path():
     if DATABASE_URL.startswith('sqlite:///'):
-        path = DATABASE_URL.replace('sqlite:///', '', 1)
-        if path:
-            Path(path).parent.mkdir(parents=True, exist_ok=True)
+        with app.app_context():
+            db_file = db.engine.url.database
+        if db_file:
+            Path(db_file).parent.mkdir(parents=True, exist_ok=True)
 
 
 def _create_tables():
@@ -119,6 +121,21 @@ def _create_tables():
                 cursor.close()
 
         db.create_all()
+
+
+def _run_migrations():
+    """Adds columns that don't exist yet on already-deployed tables, without
+    touching existing data (unlike ensure_schema's full DROP/CREATE)."""
+    with app.app_context():
+        inspector = inspect(db.engine)
+        if not inspector.has_table('specialidad'):
+            return
+        columns = {col['name'] for col in inspector.get_columns('specialidad')}
+        if 'atendido_por_bot' not in columns:
+            with db.engine.begin() as conn:
+                conn.execute(text(
+                    'ALTER TABLE specialidad ADD COLUMN atendido_por_bot BOOLEAN DEFAULT TRUE NOT NULL'
+                ))
 
 
 def _generate_token():
@@ -169,10 +186,48 @@ def login():
 def list_especialidades():
     items = Specialidad.query.order_by(Specialidad.nombre).all()
     payload = [
-        {'id': item.id, 'especialidad': item.nombre, 'descripcion': item.descripcion}
+        {
+            'id': item.id,
+            'especialidad': item.nombre,
+            'descripcion': item.descripcion,
+            'atendido_por_bot': item.atendido_por_bot,
+        }
         for item in items
     ]
     return jsonify(payload)
+
+
+@app.route('/especialidades', methods=['POST'])
+@requires_auth
+def create_especialidad():
+    data = request.get_json(force=True, silent=True) or {}
+    nombre = str(data.get('especialidad', '')).strip()
+    if not nombre:
+        return jsonify({'error': 'El nombre de la especialidad es obligatorio'}), 400
+    if Specialidad.query.filter_by(nombre=nombre).first():
+        return jsonify({'error': 'Ya existe una especialidad con ese nombre'}), 400
+    item = Specialidad(
+        nombre=nombre,
+        descripcion=str(data.get('descripcion', '') or ''),
+        atendido_por_bot=bool(data.get('atendido_por_bot', True)),
+    )
+    db.session.add(item)
+    db.session.commit()
+    return jsonify({
+        'id': item.id,
+        'especialidad': item.nombre,
+        'descripcion': item.descripcion,
+        'atendido_por_bot': item.atendido_por_bot,
+    }), 201
+
+
+@app.route('/especialidades/<int:item_id>', methods=['DELETE'])
+@requires_auth
+def delete_especialidad(item_id):
+    item = Specialidad.query.get_or_404(item_id)
+    db.session.delete(item)
+    db.session.commit()
+    return '', 204
 
 
 @app.route('/especialidades/<int:item_id>', methods=['PUT'])
@@ -180,10 +235,27 @@ def list_especialidades():
 def update_especialidad(item_id):
     item = Specialidad.query.get_or_404(item_id)
     data = request.get_json(force=True, silent=True) or {}
+    if 'especialidad' in data:
+        nombre = str(data['especialidad']).strip()
+        if not nombre:
+            return jsonify({'error': 'El nombre de la especialidad es obligatorio'}), 400
+        duplicada = Specialidad.query.filter(
+            Specialidad.nombre == nombre, Specialidad.id != item.id
+        ).first()
+        if duplicada:
+            return jsonify({'error': 'Ya existe una especialidad con ese nombre'}), 400
+        item.nombre = nombre
     if 'descripcion' in data:
         item.descripcion = str(data['descripcion'])
+    if 'atendido_por_bot' in data:
+        item.atendido_por_bot = bool(data['atendido_por_bot'])
     db.session.commit()
-    return jsonify({'id': item.id, 'descripcion': item.descripcion})
+    return jsonify({
+        'id': item.id,
+        'especialidad': item.nombre,
+        'descripcion': item.descripcion,
+        'atendido_por_bot': item.atendido_por_bot,
+    })
 
 
 @app.route('/sync/especialidades', methods=['POST'])
@@ -277,6 +349,21 @@ def create_faq():
     return jsonify({'id': faq.id}), 201
 
 
+@app.route('/faqs/<int:faq_id>', methods=['PUT'])
+@requires_auth
+def update_faq(faq_id):
+    faq = FAQ.query.get_or_404(faq_id)
+    data = request.get_json(force=True, silent=True) or {}
+    question = data.get('question', '').strip()
+    answer = data.get('answer', '').strip()
+    if not question or not answer:
+        return jsonify({'error': 'Pregunta y respuesta son obligatorias'}), 400
+    faq.question = question
+    faq.answer = answer
+    db.session.commit()
+    return jsonify({'id': faq.id, 'question': faq.question, 'answer': faq.answer})
+
+
 @app.route('/faqs/<int:faq_id>', methods=['DELETE'])
 @requires_auth
 def delete_faq(faq_id):
@@ -315,6 +402,21 @@ def create_texto():
     return jsonify({'id': item.id}), 201
 
 
+@app.route('/textos/<int:texto_id>', methods=['PUT'])
+@requires_auth
+def update_texto(texto_id):
+    item = TextoPredefinido.query.get_or_404(texto_id)
+    data = request.get_json(force=True, silent=True) or {}
+    nombre = data.get('nombre', '').strip()
+    texto = data.get('texto', '').strip()
+    if not nombre or not texto:
+        return jsonify({'error': 'Nombre y texto son obligatorios'}), 400
+    item.nombre = nombre
+    item.texto = texto
+    db.session.commit()
+    return jsonify({'id': item.id, 'nombre': item.nombre, 'texto': item.texto})
+
+
 @app.route('/textos/<int:texto_id>', methods=['DELETE'])
 @requires_auth
 def delete_texto(texto_id):
@@ -335,6 +437,7 @@ def health():
 
 _ensure_database_path()
 _create_tables()
+_run_migrations()
 ensure_schema()
 
 if __name__ == '__main__':

@@ -4,6 +4,9 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Especialidades - Tablero general</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400;12..96,600;12..96,700;12..96,800&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
@@ -22,16 +25,30 @@
       <a href="textos.html">Textos predefinidos</a>
     </nav>
     <section class="card">
-      <p class="hint">
-        Actualizá la lista con `POST /sync/especialidades` y marcá cada ítem con "Activo" y "Descripción".
-      </p>
+      <div class="toolbar">
+        <p class="hint">
+          Se sincronizan automáticamente con `POST /sync/especialidades`, o las cargás a mano acá.
+        </p>
+        <button type="button" id="new-especialidad-btn">+ Nueva especialidad</button>
+      </div>
       <div class="table-wrapper">
         <table>
           <thead>
           <tr>
             <th>Especialidad</th>
             <th>Descripción</th>
-            <th>Guardar</th>
+            <th>
+              <span class="th-with-info">
+                Atendido por bot
+                <span class="tooltip">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" tabindex="0" role="img" aria-label="Qué significa atendido por bot"><circle cx="12" cy="12" r="10" /><path d="M12 16v-4" /><path d="M12 8h.01" /></svg>
+                  <span class="tooltip-text" role="tooltip">
+                    Si está activado, el bot gestiona los turnos de esta especialidad o estudio por su cuenta. Si está desactivado, deriva la conversación a una persona.
+                  </span>
+                </span>
+              </span>
+            </th>
+            <th></th>
           </tr>
           </thead>
           <tbody id="table-body"></tbody>
@@ -40,6 +57,34 @@
       <p id="table-status" class="hint"></p>
     </section>
   </main>
+
+  <div class="dialog-overlay hidden" id="especialidad-dialog">
+    <div class="dialog" role="dialog" aria-modal="true" aria-labelledby="especialidad-dialog-title">
+      <h2 id="especialidad-dialog-title">Nueva especialidad</h2>
+      <form id="especialidad-form">
+        <label>
+          Nombre
+          <input type="text" id="especialidad-nombre" required />
+        </label>
+        <label>
+          Descripción
+          <textarea id="especialidad-descripcion" rows="4"></textarea>
+        </label>
+        <div class="switch-row">
+          <span>Atendido por bot</span>
+          <label class="switch">
+            <input type="checkbox" id="especialidad-bot" checked />
+            <span class="switch-track"></span>
+          </label>
+        </div>
+        <div class="dialog-actions">
+          <button type="button" class="secondary" id="especialidad-cancel">Cancelar</button>
+          <button type="submit" id="especialidad-submit">Crear</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
   <script src="config.js"></script>
   <script src="shared.js"></script>
   <script src="especialidades.js"></script>
