@@ -64,6 +64,19 @@ class FAQ(db.Model):
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
 
+class Profesional(db.Model):
+    __tablename__ = 'profesionales'
+    id = db.Column(db.Integer, primary_key=True)
+    nombre = db.Column(db.String(255), nullable=False)
+    especialidad = db.Column(db.String(255), default='')
+    cargo = db.Column(db.String(255), default='')
+    telefono = db.Column(db.String(255), default='')
+    email = db.Column(db.String(255), default='')
+    descripcion = db.Column(db.Text, default='')
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
 class TextoPredefinido(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     nombre = db.Column(db.String(255), nullable=False)
@@ -371,6 +384,144 @@ def delete_faq(faq_id):
     db.session.delete(faq)
     db.session.commit()
     return '', 204
+
+
+@app.route('/profesionales', methods=['GET'])
+@requires_auth
+def list_profesionales():
+    items = Profesional.query.order_by(Profesional.nombre).all()
+    return jsonify([
+        {
+            'id': item.id,
+            'nombre': item.nombre,
+            'especialidad': item.especialidad,
+            'cargo': item.cargo,
+            'telefono': item.telefono,
+            'email': item.email,
+            'descripcion': item.descripcion,
+        }
+        for item in items
+    ])
+
+
+@app.route('/profesionales', methods=['POST'])
+@requires_auth
+def create_profesional():
+    data = request.get_json(force=True, silent=True) or {}
+    nombre = str(data.get('nombre', '')).strip()
+    if not nombre:
+        return jsonify({'error': 'El nombre del profesional es obligatorio'}), 400
+    item = Profesional(
+        nombre=nombre,
+        especialidad=str(data.get('especialidad', '') or ''),
+        cargo=str(data.get('cargo', '') or ''),
+        telefono=str(data.get('telefono', '') or ''),
+        email=str(data.get('email', '') or ''),
+        descripcion=str(data.get('descripcion', '') or ''),
+    )
+    db.session.add(item)
+    db.session.commit()
+    return jsonify({
+        'id': item.id,
+        'nombre': item.nombre,
+        'especialidad': item.especialidad,
+        'cargo': item.cargo,
+        'telefono': item.telefono,
+        'email': item.email,
+        'descripcion': item.descripcion,
+    }), 201
+
+
+@app.route('/profesionales/<int:profesional_id>', methods=['PUT'])
+@requires_auth
+def update_profesional(profesional_id):
+    item = Profesional.query.get_or_404(profesional_id)
+    data = request.get_json(force=True, silent=True) or {}
+    nombre = str(data.get('nombre', item.nombre)).strip()
+    if not nombre:
+        return jsonify({'error': 'El nombre del profesional es obligatorio'}), 400
+    item.nombre = nombre
+    if 'especialidad' in data:
+        item.especialidad = str(data['especialidad'] or '')
+    if 'cargo' in data:
+        item.cargo = str(data['cargo'] or '')
+    if 'telefono' in data:
+        item.telefono = str(data['telefono'] or '')
+    if 'email' in data:
+        item.email = str(data['email'] or '')
+    if 'descripcion' in data:
+        item.descripcion = str(data['descripcion'] or '')
+    db.session.commit()
+    return jsonify({
+        'id': item.id,
+        'nombre': item.nombre,
+        'especialidad': item.especialidad,
+        'cargo': item.cargo,
+        'telefono': item.telefono,
+        'email': item.email,
+        'descripcion': item.descripcion,
+    })
+
+
+@app.route('/profesionales/<int:profesional_id>', methods=['DELETE'])
+@requires_auth
+def delete_profesional(profesional_id):
+    item = Profesional.query.get_or_404(profesional_id)
+    db.session.delete(item)
+    db.session.commit()
+    return '', 204
+
+
+@app.route('/sync/profesionales', methods=['POST'])
+@requires_auth
+def sync_profesionales():
+    payload = request.get_json(force=True, silent=True) or {}
+    if isinstance(payload, list):
+        profesionales = payload
+    else:
+        profesionales = payload.get('profesionales')
+
+    if not isinstance(profesionales, list):
+        return jsonify({'error': 'Se esperaba un array bajo la clave "profesionales"'}), 400
+
+    normalized = []
+    for item in profesionales:
+        if not isinstance(item, dict):
+            continue
+        nombre = str(item.get('nombre', '')).strip()
+        if not nombre:
+            continue
+        normalized.append({
+            'nombre': nombre,
+            'especialidad': str(item.get('especialidad', '') or ''),
+            'cargo': str(item.get('cargo', '') or ''),
+            'telefono': str(item.get('telefono', '') or ''),
+            'email': str(item.get('email', '') or ''),
+            'descripcion': str(item.get('descripcion', '') or ''),
+        })
+
+    if not normalized:
+        return jsonify({'error': 'No se recibieron profesionales válidos'}), 400
+
+    existing = {item.nombre: item for item in Profesional.query.all()}
+    received_names = {item['nombre'] for item in normalized}
+
+    for item in normalized:
+        if item['nombre'] in existing:
+            current = existing[item['nombre']]
+            current.especialidad = item['especialidad']
+            current.cargo = item['cargo']
+            current.telefono = item['telefono']
+            current.email = item['email']
+            current.descripcion = item['descripcion']
+            continue
+        db.session.add(Profesional(**item))
+
+    for obsolete in [item for item in existing.values() if item.nombre not in received_names]:
+        db.session.delete(obsolete)
+
+    db.session.commit()
+    return jsonify({'imported': len(normalized)})
 
 
 @app.route('/textos', methods=['GET'])
