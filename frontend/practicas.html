@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Especialidades - Tablero general</title>
+  <title>Prácticas - Tablero general</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400;12..96,600;12..96,700;12..96,800&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet" />
@@ -14,30 +14,31 @@
     <header class="page-header">
       <div>
         <p class="hero-label">GACITUA BOT</p>
-        <h1>Especialidades</h1>
+        <h1>Prácticas</h1>
       </div>
       <button id="logout-link" class="secondary">Cerrar sesión</button>
     </header>
     <nav class="page-nav">
       <a href="general.html">General</a>
-      <a href="especialidades.html" class="active">Especialidades</a>
+      <a href="especialidades.html">Especialidades</a>
       <a href="profesionales.html">Profesionales</a>
-      <a href="practicas.html">Prácticas</a>
+      <a href="practicas.html" class="active">Prácticas</a>
       <a href="faqs.html">FAQs</a>
       <a href="textos.html">Textos predefinidos</a>
     </nav>
     <section class="card">
       <div class="toolbar">
         <p class="hint">
-          Se sincronizan automáticamente con `POST /sync/especialidades`, o las cargás a mano acá.
+          Se sincronizan automáticamente con `POST /sync/practicas`, o las cargás a mano acá.
         </p>
-        <button type="button" id="new-especialidad-btn">+ Nueva especialidad</button>
+        <button type="button" id="new-practica-btn">+ Nueva práctica</button>
       </div>
       <div class="table-wrapper">
         <table>
           <thead>
           <tr>
-            <th>Especialidad</th>
+            <th>Práctica</th>
+            <th>Especialidades</th>
             <th>Descripción</th>
             <th>
               <span class="th-with-info">
@@ -45,7 +46,7 @@
                 <span class="tooltip">
                   <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" tabindex="0" role="img" aria-label="Qué significa atendido por bot"><circle cx="12" cy="12" r="10" /><path d="M12 16v-4" /><path d="M12 8h.01" /></svg>
                   <span class="tooltip-text" role="tooltip">
-                    Si está activado, el bot gestiona los turnos de esta especialidad o estudio por su cuenta. Si está desactivado, deriva la conversación a una persona.
+                    Si está activado, el bot gestiona los turnos de esta práctica por su cuenta. Si está desactivado, deriva la conversación a una persona.
                   </span>
                 </span>
               </span>
@@ -60,28 +61,39 @@
     </section>
   </main>
 
-  <div class="dialog-overlay hidden" id="especialidad-dialog">
-    <div class="dialog" role="dialog" aria-modal="true" aria-labelledby="especialidad-dialog-title">
-      <h2 id="especialidad-dialog-title">Nueva especialidad</h2>
-      <form id="especialidad-form">
+  <div class="dialog-overlay hidden" id="practica-dialog">
+    <div class="dialog" role="dialog" aria-modal="true" aria-labelledby="practica-dialog-title">
+      <h2 id="practica-dialog-title">Nueva práctica</h2>
+      <form id="practica-form">
         <label>
           Nombre
-          <input type="text" id="especialidad-nombre" required />
+          <input type="text" id="practica-nombre" required />
         </label>
         <label>
+          Especialidades
+          <div class="ms" id="practica-especialidades-select">
+            <div class="ms-trigger" tabindex="0" role="button" aria-haspopup="listbox" aria-expanded="false">
+              <span class="ms-chips"></span>
+              <span class="ms-chevron" aria-hidden="true"></span>
+            </div>
+            <div class="ms-popover hidden" role="listbox" aria-multiselectable="true"></div>
+          </div>
+        </label>
+        <p class="hint">Opcional: podés dejar la práctica sin especialidad asociada.</p>
+        <label>
           Descripción
-          <textarea id="especialidad-descripcion" rows="4"></textarea>
+          <textarea id="practica-descripcion" rows="4"></textarea>
         </label>
         <div class="switch-row">
           <span>Atendido por bot</span>
           <label class="switch">
-            <input type="checkbox" id="especialidad-bot" checked />
+            <input type="checkbox" id="practica-bot" checked />
             <span class="switch-track"></span>
           </label>
         </div>
         <div class="dialog-actions">
-          <button type="button" class="secondary" id="especialidad-cancel">Cancelar</button>
-          <button type="submit" id="especialidad-submit">Crear</button>
+          <button type="button" class="secondary" id="practica-cancel">Cancelar</button>
+          <button type="submit" id="practica-submit">Crear</button>
         </div>
       </form>
     </div>
@@ -89,6 +101,6 @@
 
   <script src="config.js"></script>
   <script src="shared.js?v=20260824"></script>
-  <script src="especialidades.js?v=20260824"></script>
+  <script src="practicas.js?v=20260824"></script>
 </body>
 </html>

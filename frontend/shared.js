@@ -169,6 +169,250 @@
     return dismiss;
   }
 
+  const ICONS = {
+    chevronDown: '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6" /></svg>',
+    check: '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5" /></svg>',
+    close: '<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18" /><path d="m6 6 12 12" /></svg>',
+  };
+
+  const openDropdowns = new Set();
+
+  // Popover flotante (portal a <body>, position: fixed) para que un select o
+  // multiselect abierto dentro de un dialog con overflow-y:auto no quede
+  // recortado por ese scroll. Se cierra al hacer scroll para no arrastrar una
+  // posición vieja.
+  function createDropdown({ wrapper, trigger, popover, onOpen }) {
+    document.body.appendChild(popover);
+    let isOpen = false;
+
+    function reposition() {
+      const rect = trigger.getBoundingClientRect();
+      popover.style.left = `${rect.left}px`;
+      popover.style.width = `${rect.width}px`;
+      const spaceBelow = window.innerHeight - rect.bottom;
+      if (spaceBelow < 260 && rect.top > spaceBelow) {
+        popover.style.top = 'auto';
+        popover.style.bottom = `${window.innerHeight - rect.top + 6}px`;
+      } else {
+        popover.style.bottom = 'auto';
+        popover.style.top = `${rect.bottom + 6}px`;
+      }
+    }
+
+    function handleOutside(event) {
+      if (!popover.contains(event.target) && !trigger.contains(event.target)) close();
+    }
+
+    function handleKey(event) {
+      if (event.key === 'Escape') {
+        close();
+        trigger.focus();
+        return;
+      }
+      if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+        const opts = Array.from(popover.querySelectorAll('[role="option"]'));
+        if (!opts.length) return;
+        event.preventDefault();
+        const idx = opts.indexOf(document.activeElement);
+        const next = event.key === 'ArrowDown' ? opts[idx + 1] || opts[0] : opts[idx - 1] || opts[opts.length - 1];
+        next.focus();
+      }
+    }
+
+    function close() {
+      if (!isOpen) return;
+      isOpen = false;
+      openDropdowns.delete(close);
+      popover.classList.add('hidden');
+      trigger.setAttribute('aria-expanded', 'false');
+      wrapper.removeAttribute('data-open');
+      document.removeEventListener('mousedown', handleOutside, true);
+      document.removeEventListener('keydown', handleKey, true);
+      window.removeEventListener('scroll', close, true);
+      window.removeEventListener('resize', reposition);
+    }
+
+    function open() {
+      if (isOpen) return;
+      openDropdowns.forEach((closeOther) => closeOther());
+      isOpen = true;
+      openDropdowns.add(close);
+      if (onOpen) onOpen();
+      popover.classList.remove('hidden');
+      trigger.setAttribute('aria-expanded', 'true');
+      wrapper.setAttribute('data-open', '');
+      reposition();
+      document.addEventListener('mousedown', handleOutside, true);
+      document.addEventListener('keydown', handleKey, true);
+      window.addEventListener('scroll', close, true);
+      window.addEventListener('resize', reposition);
+      const first = popover.querySelector('[role="option"]');
+      if (first) first.focus();
+    }
+
+    trigger.addEventListener('click', () => (isOpen ? close() : open()));
+    return { open, close, isOpen: () => isOpen };
+  }
+
+  function buildOptionRow({ selected, label, checkbox }) {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = checkbox ? 'ms-option' : 'ui-select-option';
+    btn.setAttribute('role', 'option');
+    btn.setAttribute('aria-selected', String(selected));
+    const mark = document.createElement('span');
+    mark.className = checkbox ? 'ms-checkbox' : 'ui-select-check';
+    if (selected) mark.innerHTML = ICONS.check;
+    const text = document.createElement('span');
+    text.textContent = label;
+    btn.append(mark, text);
+    return btn;
+  }
+
+  // Select simple. root debe contener .ui-select-trigger > .ui-select-value
+  // y .ui-select-popover. options: [{ value, label }]. value null = placeholder.
+  function createSelect(root, { options = [], placeholder = 'Seleccionar...', onChange } = {}) {
+    const trigger = root.querySelector('.ui-select-trigger');
+    const valueEl = root.querySelector('.ui-select-value');
+    const popover = root.querySelector('.ui-select-popover');
+    const chevron = root.querySelector('.ui-select-chevron');
+    if (chevron) chevron.innerHTML = ICONS.chevronDown;
+    let opts = options;
+    let value = null;
+
+    function renderTrigger() {
+      const found = opts.find((o) => o.value === value);
+      valueEl.textContent = found ? found.label : placeholder;
+      valueEl.classList.toggle('ui-select-placeholder', !found);
+    }
+
+    function renderOptions() {
+      popover.innerHTML = '';
+      opts.forEach((opt) => {
+        const row = buildOptionRow({ selected: opt.value === value, label: opt.label, checkbox: false });
+        row.addEventListener('click', () => {
+          value = opt.value;
+          renderTrigger();
+          dropdown.close();
+          if (onChange) onChange(value);
+        });
+        popover.appendChild(row);
+      });
+    }
+
+    const dropdown = createDropdown({ wrapper: root, trigger, popover, onOpen: renderOptions });
+
+    function setOptions(list) {
+      opts = list;
+      renderOptions();
+      renderTrigger();
+    }
+    function setValue(v) {
+      value = v;
+      renderTrigger();
+    }
+    function getValue() {
+      return value;
+    }
+
+    setOptions(opts);
+    return { setOptions, setValue, getValue };
+  }
+
+  // Multiselect con chips. root debe contener .ms-trigger (div, no button: puede
+  // alojar botones "quitar chip" y un button dentro de otro button es HTML
+  // inválido) > .ms-chips, y .ms-popover. options: [{ id, nombre }].
+  function createMultiSelect(root, { options = [], placeholder = 'Seleccionar...', onChange } = {}) {
+    const trigger = root.querySelector('.ms-trigger');
+    const chipsEl = root.querySelector('.ms-chips');
+    const popover = root.querySelector('.ms-popover');
+    const chevron = root.querySelector('.ms-chevron');
+    if (chevron) chevron.innerHTML = ICONS.chevronDown;
+    let opts = options;
+    let selected = new Set();
+
+    function renderChips() {
+      chipsEl.innerHTML = '';
+      const chosen = opts.filter((o) => selected.has(o.id));
+      if (chosen.length === 0) {
+        const span = document.createElement('span');
+        span.className = 'ms-placeholder';
+        span.textContent = placeholder;
+        chipsEl.appendChild(span);
+        return;
+      }
+      chosen.forEach((opt) => {
+        const chip = document.createElement('span');
+        chip.className = 'chip';
+        const label = document.createElement('span');
+        label.textContent = opt.nombre;
+        const remove = document.createElement('button');
+        remove.type = 'button';
+        remove.className = 'chip-remove';
+        remove.setAttribute('aria-label', `Quitar ${opt.nombre}`);
+        remove.innerHTML = ICONS.close;
+        remove.addEventListener('click', (event) => {
+          event.stopPropagation();
+          selected.delete(opt.id);
+          renderOptions();
+          renderChips();
+          if (onChange) onChange(Array.from(selected));
+        });
+        chip.append(label, remove);
+        chipsEl.appendChild(chip);
+      });
+    }
+
+    function renderOptions() {
+      popover.innerHTML = '';
+      if (opts.length === 0) {
+        const empty = document.createElement('p');
+        empty.className = 'ms-empty hint';
+        empty.textContent = 'No hay especialidades cargadas.';
+        popover.appendChild(empty);
+        return;
+      }
+      opts.forEach((opt) => {
+        const row = buildOptionRow({ selected: selected.has(opt.id), label: opt.nombre, checkbox: true });
+        row.addEventListener('click', () => {
+          if (selected.has(opt.id)) selected.delete(opt.id);
+          else selected.add(opt.id);
+          renderOptions();
+          renderChips();
+          if (onChange) onChange(Array.from(selected));
+        });
+        popover.appendChild(row);
+      });
+    }
+
+    trigger.addEventListener('keydown', (event) => {
+      if (event.key === 'Enter' || event.key === ' ') {
+        event.preventDefault();
+        if (dropdown.isOpen()) dropdown.close();
+        else dropdown.open();
+      }
+    });
+
+    const dropdown = createDropdown({ wrapper: root, trigger, popover, onOpen: renderOptions });
+
+    function setOptions(list) {
+      opts = list;
+      selected = new Set(Array.from(selected).filter((id) => opts.some((o) => o.id === id)));
+      renderOptions();
+      renderChips();
+    }
+    function setValue(ids) {
+      selected = new Set(ids || []);
+      renderChips();
+    }
+    function getValue() {
+      return Array.from(selected);
+    }
+
+    renderChips();
+    return { setOptions, setValue, getValue };
+  }
+
   window.tablero = {
     API,
     getToken,
@@ -179,5 +423,7 @@
     setupDialog,
     confirm: confirmDialog,
     toast,
+    createSelect,
+    createMultiSelect,
   };
 })();
