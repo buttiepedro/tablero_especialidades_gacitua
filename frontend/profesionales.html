@@ -10,7 +10,7 @@
   <link rel="stylesheet" href="styles.css?v=20260818" />
 </head>
 <body>
-  <main>
+  <main class="professionals-page">
     <header class="page-header">
       <div>
         <p class="hero-label">GACITUA BOT</p>
@@ -36,10 +36,10 @@
         <table>
           <thead>
           <tr>
-            <th>Nombre</th>
-            <th>Especialidad</th>
-            <th>Cargo</th>
-            <th>Contacto</th>
+            <th>Nombre completo</th>
+            <th>Especialidades</th>
+            <th>Nota web efectiva</th>
+            <th>Criterio manual</th>
             <th></th>
           </tr>
           </thead>
@@ -55,28 +55,28 @@
       <h2 id="profesional-dialog-title">Nuevo profesional</h2>
       <form id="profesional-form">
         <label>
-          Nombre
-          <input type="text" id="profesional-nombre" required />
+          Nombre completo
+          <input type="text" id="profesional-nombre-completo" required />
         </label>
         <label>
-          Especialidad
+          Especialidad principal
           <input type="text" id="profesional-especialidad" />
         </label>
         <label>
-          Cargo
-          <input type="text" id="profesional-cargo" />
+          Segunda especialidad
+          <input type="text" id="profesional-especialidad2" />
         </label>
         <label>
-          Teléfono
-          <input type="text" id="profesional-telefono" />
+          Tercera especialidad
+          <input type="text" id="profesional-especialidad3" />
         </label>
         <label>
-          Email
-          <input type="email" id="profesional-email" />
+          ID profesional
+          <input type="number" id="profesional-id" min="1" />
         </label>
         <label>
-          Descripción
-          <textarea id="profesional-descripcion" rows="4"></textarea>
+          Nota web original
+          <textarea id="profesional-notaweb" rows="3"></textarea>
         </label>
         <div class="dialog-actions">
           <button type="button" class="secondary" id="profesional-dialog-cancel">Cancelar</button>

@@ -6,12 +6,12 @@ const newProfesionalBtn = document.getElementById('new-profesional-btn');
 const profesionalDialogOverlay = document.getElementById('profesional-dialog');
 const profesionalDialogTitle = document.getElementById('profesional-dialog-title');
 const profesionalForm = document.getElementById('profesional-form');
-const nombreInput = document.getElementById('profesional-nombre');
+const nombreInput = document.getElementById('profesional-nombre-completo');
 const especialidadInput = document.getElementById('profesional-especialidad');
-const cargoInput = document.getElementById('profesional-cargo');
-const telefonoInput = document.getElementById('profesional-telefono');
-const emailInput = document.getElementById('profesional-email');
-const descripcionInput = document.getElementById('profesional-descripcion');
+const especialidad2Input = document.getElementById('profesional-especialidad2');
+const especialidad3Input = document.getElementById('profesional-especialidad3');
+const idInput = document.getElementById('profesional-id');
+const notawebInput = document.getElementById('profesional-notaweb');
 const profesionalDialogCancel = document.getElementById('profesional-dialog-cancel');
 const profesionalDialog = tablero.setupDialog(profesionalDialogOverlay);
 
@@ -37,12 +37,12 @@ profesionalForm.addEventListener('submit', async (event) => {
 
   const isEditing = editingProfesionalId !== null;
   const payload = {
-    nombre,
-    especialidad: especialidadInput.value.trim(),
-    cargo: cargoInput.value.trim(),
-    telefono: telefonoInput.value.trim(),
-    email: emailInput.value.trim(),
-    descripcion: descripcionInput.value.trim(),
+    nombreCompleto: nombre,
+    nombreEspecialidad: especialidadInput.value.trim(),
+    nombreEspecialidad2: especialidad2Input.value.trim(),
+    nombreEspecialidad3: especialidad3Input.value.trim(),
+    id_profesional: idInput.value ? Number(idInput.value) : null,
+    notaweb: notawebInput.value.trim(),
   };
 
   const response = await tablero.fetchWithAuth(
@@ -88,14 +88,21 @@ function renderProfesionales(profesionales) {
 
   profesionales.forEach((profesional) => {
     const row = document.createElement('tr');
+    const specialties = [profesional.nombreEspecialidad, profesional.nombreEspecialidad2, profesional.nombreEspecialidad3]
+      .filter(Boolean).map(escapeHTML).join('<br>') || '—';
     row.innerHTML = `
-      <td>${escapeHTML(profesional.nombre)}</td>
-      <td>${escapeHTML(profesional.especialidad || '—')}</td>
-      <td>${escapeHTML(profesional.cargo || '—')}</td>
       <td>
-        <div class="contact-stack">
-          ${profesional.telefono ? `<div>${escapeHTML(profesional.telefono)}</div>` : '<div class="empty-value">Sin teléfono</div>'}
-          ${profesional.email ? `<div>${escapeHTML(profesional.email)}</div>` : '<div class="empty-value">Sin email</div>'}
+        <strong>${escapeHTML(profesional.nombreCompleto || profesional.nombre || '')}</strong>
+        ${profesional.id_profesional ? `<small>ID: ${escapeHTML(String(profesional.id_profesional))}</small>` : ''}
+      </td>
+      <td>${specialties}</td>
+      <td>${escapeHTML(profesional.notaweb_efectiva || '—')}</td>
+      <td>
+        <div class="manual-criteria" data-profesional-id="${profesional.id}">
+          ${criteriaSelect('genero', profesional.criterio_genero, [['', 'Género'], ['femenino', 'Femenino'], ['masculino', 'Masculino'], ['otro', 'Otro']])}
+          ${criteriaSelect('edad-desde', profesional.criterio_edad_desde, [['', 'Edad desde'], ...ageOptions()])}
+          ${criteriaSelect('edad-hasta', profesional.criterio_edad_hasta, [['', 'Edad hasta'], ...ageOptions()])}
+          <button type="button" class="save-criteria" data-save-criteria="${profesional.id}">Guardar</button>
         </div>
       </td>
       <td>
@@ -113,6 +120,10 @@ function renderProfesionales(profesionales) {
     button.addEventListener('click', () => openProfesionalDialog(profesional));
   });
 
+  profesionalesTableBody.querySelectorAll('button[data-save-criteria]').forEach((button) => {
+    button.addEventListener('click', () => saveCriteria(button.dataset.saveCriteria, button.closest('.manual-criteria')));
+  });
+
   profesionalesTableBody.querySelectorAll('button[data-delete]').forEach((button) => {
     const profesional = profesionales.find((item) => String(item.id) === button.dataset.delete);
     button.addEventListener('click', () => deleteProfesional(button.dataset.delete, profesional));
@@ -122,12 +133,12 @@ function renderProfesionales(profesionales) {
 function openProfesionalDialog(profesional) {
   editingProfesionalId = profesional ? profesional.id : null;
   profesionalDialogTitle.textContent = profesional ? 'Editar profesional' : 'Nuevo profesional';
-  nombreInput.value = profesional ? profesional.nombre : '';
-  especialidadInput.value = profesional ? profesional.especialidad || '' : '';
-  cargoInput.value = profesional ? profesional.cargo || '' : '';
-  telefonoInput.value = profesional ? profesional.telefono || '' : '';
-  emailInput.value = profesional ? profesional.email || '' : '';
-  descripcionInput.value = profesional ? profesional.descripcion || '' : '';
+  nombreInput.value = profesional ? profesional.nombreCompleto || profesional.nombre || '' : '';
+  especialidadInput.value = profesional ? profesional.nombreEspecialidad || profesional.especialidad || '' : '';
+  especialidad2Input.value = profesional ? profesional.nombreEspecialidad2 || '' : '';
+  especialidad3Input.value = profesional ? profesional.nombreEspecialidad3 || '' : '';
+  idInput.value = profesional && profesional.id_profesional ? profesional.id_profesional : '';
+  notawebInput.value = profesional ? profesional.notaweb || '' : '';
   profesionalDialog.open();
   nombreInput.focus();
 }
@@ -147,6 +158,34 @@ async function deleteProfesional(id, profesional) {
     loadProfesionales();
   } else {
     tablero.toast('No se pudo eliminar el profesional.', { variant: 'error' });
+  }
+}
+
+function criteriaSelect(name, value, options) {
+  return `<select data-criteria="${name}">${options.map(([optionValue, label]) =>
+    `<option value="${escapeHTML(String(optionValue))}" ${String(value ?? '') === String(optionValue) ? 'selected' : ''}>${escapeHTML(label)}</option>`
+  ).join('')}</select>`;
+}
+
+function ageOptions() {
+  return Array.from({ length: 121 }, (_, age) => [String(age), String(age)]);
+}
+
+async function saveCriteria(id, container) {
+  const selects = container.querySelectorAll('select[data-criteria]');
+  const payload = {};
+  selects.forEach((select) => {
+    payload[`criterio_${select.dataset.criteria.replace('-', '_')}`] = select.value ? Number(select.value) || select.value : null;
+  });
+  const response = await tablero.fetchWithAuth(`/profesionales/${id}`, {
+    method: 'PUT',
+    body: JSON.stringify(payload),
+  });
+  if (response.ok) {
+    tablero.toast('Criterio manual guardado');
+    loadProfesionales();
+  } else {
+    tablero.toast('No se pudo guardar el criterio manual.', { variant: 'error' });
   }
 }
 

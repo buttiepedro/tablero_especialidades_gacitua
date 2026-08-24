@@ -67,14 +67,46 @@ class FAQ(db.Model):
 class Profesional(db.Model):
     __tablename__ = 'profesionales'
     id = db.Column(db.Integer, primary_key=True)
-    nombre = db.Column(db.String(255), nullable=False)
-    especialidad = db.Column(db.String(255), default='')
+    nombre_completo = db.Column(db.String(255), nullable=False)
+    nombre_especialidad = db.Column(db.String(255), default='')
+    nombre_especialidad2 = db.Column(db.String(255), default='')
+    nombre_especialidad3 = db.Column(db.String(255), default='')
+    id_profesional = db.Column(db.Integer, unique=True, nullable=True)
+    notaweb = db.Column(db.Text, default='')
+    notaweb_manual = db.Column(db.Text, default='')
+    criterio_genero = db.Column(db.String(32), default='')
+    criterio_edad_desde = db.Column(db.Integer, nullable=True)
+    criterio_edad_hasta = db.Column(db.Integer, nullable=True)
     cargo = db.Column(db.String(255), default='')
     telefono = db.Column(db.String(255), default='')
     email = db.Column(db.String(255), default='')
     descripcion = db.Column(db.Text, default='')
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    @property
+    def notaweb_efectiva(self):
+        criteria = build_notaweb_criterio(
+            self.criterio_genero,
+            self.criterio_edad_desde,
+            self.criterio_edad_hasta,
+        )
+        return criteria or self.notaweb or ''
+
+
+def build_notaweb_criterio(genero='', edad_desde=None, edad_hasta=None):
+    parts = []
+    if genero:
+        parts.append(f'de género {genero}')
+    if edad_desde is not None and edad_hasta is not None:
+        parts.append(f'entre {edad_desde} y {edad_hasta} años inclusive')
+    elif edad_desde is not None:
+        parts.append(f'desde {edad_desde} años')
+    elif edad_hasta is not None:
+        parts.append(f'hasta {edad_hasta} años inclusive')
+    if not parts:
+        return ''
+    return f"Atiende pacientes {' y '.join(parts)}."
 
 
 class TextoPredefinido(db.Model):
@@ -106,6 +138,26 @@ def ensure_schema():
         with db.engine.begin() as conn:
             for stmt in statements:
                 conn.execute(text(stmt))
+            columns = {column['name'] for column in inspect(db.engine).get_columns('profesionales')}
+            additions = {
+                'nombre_completo': 'VARCHAR(255)',
+                'nombre_especialidad': 'VARCHAR(255)',
+                'nombre_especialidad2': 'VARCHAR(255)',
+                'nombre_especialidad3': 'VARCHAR(255)',
+                'id_profesional': 'INTEGER',
+                'notaweb': 'TEXT',
+                'notaweb_manual': 'TEXT',
+                'criterio_genero': 'VARCHAR(32)',
+                'criterio_edad_desde': 'INTEGER',
+                'criterio_edad_hasta': 'INTEGER',
+                'cargo': 'VARCHAR(255)',
+                'telefono': 'VARCHAR(255)',
+                'email': 'VARCHAR(255)',
+                'descripcion': 'TEXT',
+            }
+            for column, column_type in additions.items():
+                if column not in columns:
+                    conn.execute(text(f'ALTER TABLE profesionales ADD COLUMN {column} {column_type}'))
 
         if meta:
             meta.schema_hash = current_hash
@@ -389,47 +441,87 @@ def delete_faq(faq_id):
 @app.route('/profesionales', methods=['GET'])
 @requires_auth
 def list_profesionales():
-    items = Profesional.query.order_by(Profesional.nombre).all()
-    return jsonify([
-        {
-            'id': item.id,
-            'nombre': item.nombre,
-            'especialidad': item.especialidad,
-            'cargo': item.cargo,
-            'telefono': item.telefono,
-            'email': item.email,
-            'descripcion': item.descripcion,
-        }
-        for item in items
-    ])
+    items = Profesional.query.order_by(Profesional.nombre_completo).all()
+    return jsonify([serialize_profesional(item) for item in items])
+
+
+def serialize_profesional(item):
+    return {
+        'id': item.id,
+        'nombreCompleto': item.nombre_completo,
+        'nombreEspecialidad': item.nombre_especialidad,
+        'nombreEspecialidad2': item.nombre_especialidad2,
+        'nombreEspecialidad3': item.nombre_especialidad3,
+        'id_profesional': item.id_profesional,
+        'notaweb': item.notaweb,
+        'notaweb_efectiva': item.notaweb_efectiva,
+        'criterio_genero': item.criterio_genero,
+        'criterio_edad_desde': item.criterio_edad_desde,
+        'criterio_edad_hasta': item.criterio_edad_hasta,
+        'cargo': item.cargo,
+        'telefono': item.telefono,
+        'email': item.email,
+        'descripcion': item.descripcion,
+        # Legacy names remain available to existing API consumers.
+        'nombre': item.nombre_completo,
+        'especialidad': item.nombre_especialidad,
+    }
+
+
+def profesional_values(data, current=None):
+    def value(new_name, old_name, default=''):
+        if new_name in data:
+            return data[new_name]
+        if old_name in data:
+            return data[old_name]
+        current_name = {
+            'nombreCompleto': 'nombre_completo',
+            'nombreEspecialidad': 'nombre_especialidad',
+        }.get(new_name, new_name)
+        return getattr(current, current_name, default) if current else default
+
+    raw_id = value('id_profesional', 'id_profesional', None)
+    try:
+        professional_id = int(raw_id) if raw_id not in (None, '') else None
+    except (TypeError, ValueError):
+        professional_id = None
+
+    def age_value(name):
+        raw = data.get(name, getattr(current, name, None) if current else None)
+        try:
+            return int(raw) if raw not in (None, '') else None
+        except (TypeError, ValueError):
+            return None
+
+    return {
+        'nombre_completo': str(value('nombreCompleto', 'nombre')).strip(),
+        'nombre_especialidad': str(value('nombreEspecialidad', 'especialidad') or ''),
+        'nombre_especialidad2': str(data.get('nombreEspecialidad2', getattr(current, 'nombre_especialidad2', '')) or ''),
+        'nombre_especialidad3': str(data.get('nombreEspecialidad3', getattr(current, 'nombre_especialidad3', '')) or ''),
+        'id_profesional': professional_id,
+        'notaweb': str(data.get('notaweb', getattr(current, 'notaweb', '')) or ''),
+        'notaweb_manual': str(data.get('notaweb_manual', getattr(current, 'notaweb_manual', '')) or ''),
+        'criterio_genero': str(data.get('criterio_genero', getattr(current, 'criterio_genero', '')) or ''),
+        'criterio_edad_desde': age_value('criterio_edad_desde'),
+        'criterio_edad_hasta': age_value('criterio_edad_hasta'),
+        'cargo': str(data.get('cargo', getattr(current, 'cargo', '')) or ''),
+        'telefono': str(data.get('telefono', getattr(current, 'telefono', '')) or ''),
+        'email': str(data.get('email', getattr(current, 'email', '')) or ''),
+        'descripcion': str(data.get('descripcion', getattr(current, 'descripcion', '')) or ''),
+    }
 
 
 @app.route('/profesionales', methods=['POST'])
 @requires_auth
 def create_profesional():
     data = request.get_json(force=True, silent=True) or {}
-    nombre = str(data.get('nombre', '')).strip()
-    if not nombre:
+    values = profesional_values(data)
+    if not values['nombre_completo']:
         return jsonify({'error': 'El nombre del profesional es obligatorio'}), 400
-    item = Profesional(
-        nombre=nombre,
-        especialidad=str(data.get('especialidad', '') or ''),
-        cargo=str(data.get('cargo', '') or ''),
-        telefono=str(data.get('telefono', '') or ''),
-        email=str(data.get('email', '') or ''),
-        descripcion=str(data.get('descripcion', '') or ''),
-    )
+    item = Profesional(**values)
     db.session.add(item)
     db.session.commit()
-    return jsonify({
-        'id': item.id,
-        'nombre': item.nombre,
-        'especialidad': item.especialidad,
-        'cargo': item.cargo,
-        'telefono': item.telefono,
-        'email': item.email,
-        'descripcion': item.descripcion,
-    }), 201
+    return jsonify(serialize_profesional(item)), 201
 
 
 @app.route('/profesionales/<int:profesional_id>', methods=['PUT'])
@@ -437,30 +529,19 @@ def create_profesional():
 def update_profesional(profesional_id):
     item = Profesional.query.get_or_404(profesional_id)
     data = request.get_json(force=True, silent=True) or {}
-    nombre = str(data.get('nombre', item.nombre)).strip()
-    if not nombre:
+    values = profesional_values(data, item)
+    if not values['nombre_completo']:
         return jsonify({'error': 'El nombre del profesional es obligatorio'}), 400
-    item.nombre = nombre
-    if 'especialidad' in data:
-        item.especialidad = str(data['especialidad'] or '')
-    if 'cargo' in data:
-        item.cargo = str(data['cargo'] or '')
-    if 'telefono' in data:
-        item.telefono = str(data['telefono'] or '')
-    if 'email' in data:
-        item.email = str(data['email'] or '')
-    if 'descripcion' in data:
-        item.descripcion = str(data['descripcion'] or '')
+    if (
+        values['criterio_edad_desde'] is not None
+        and values['criterio_edad_hasta'] is not None
+        and values['criterio_edad_desde'] > values['criterio_edad_hasta']
+    ):
+        return jsonify({'error': 'La edad desde no puede ser mayor que la edad hasta'}), 400
+    for field, value in values.items():
+        setattr(item, field, value)
     db.session.commit()
-    return jsonify({
-        'id': item.id,
-        'nombre': item.nombre,
-        'especialidad': item.especialidad,
-        'cargo': item.cargo,
-        'telefono': item.telefono,
-        'email': item.email,
-        'descripcion': item.descripcion,
-    })
+    return jsonify(serialize_profesional(item))
 
 
 @app.route('/profesionales/<int:profesional_id>', methods=['DELETE'])
@@ -488,36 +569,33 @@ def sync_profesionales():
     for item in profesionales:
         if not isinstance(item, dict):
             continue
-        nombre = str(item.get('nombre', '')).strip()
-        if not nombre:
+        values = profesional_values(item)
+        if not values['nombre_completo']:
             continue
-        normalized.append({
-            'nombre': nombre,
-            'especialidad': str(item.get('especialidad', '') or ''),
-            'cargo': str(item.get('cargo', '') or ''),
-            'telefono': str(item.get('telefono', '') or ''),
-            'email': str(item.get('email', '') or ''),
-            'descripcion': str(item.get('descripcion', '') or ''),
-        })
+        normalized.append(values)
 
     if not normalized:
         return jsonify({'error': 'No se recibieron profesionales válidos'}), 400
 
-    existing = {item.nombre: item for item in Profesional.query.all()}
-    received_names = {item['nombre'] for item in normalized}
+    def identity(values):
+        return values['id_profesional'] if values['id_profesional'] is not None else ('nombre', values['nombre_completo'])
+
+    existing = {identity({
+        'id_profesional': item.id_profesional,
+        'nombre_completo': item.nombre_completo,
+    }): item for item in Profesional.query.all()}
+    received_ids = {identity(item) for item in normalized}
 
     for item in normalized:
-        if item['nombre'] in existing:
-            current = existing[item['nombre']]
-            current.especialidad = item['especialidad']
-            current.cargo = item['cargo']
-            current.telefono = item['telefono']
-            current.email = item['email']
-            current.descripcion = item['descripcion']
+        if identity(item) in existing:
+            current = existing[identity(item)]
+            for field, value in item.items():
+                if field not in ('notaweb_manual', 'criterio_genero', 'criterio_edad_desde', 'criterio_edad_hasta'):
+                    setattr(current, field, value)
             continue
         db.session.add(Profesional(**item))
 
-    for obsolete in [item for item in existing.values() if item.nombre not in received_names]:
+    for obsolete in [item for item in existing.values() if item.id_profesional not in received_ids]:
         db.session.delete(obsolete)
 
     db.session.commit()

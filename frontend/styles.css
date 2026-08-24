@@ -82,6 +82,10 @@ main {
   gap: 1.5rem;
 }
 
+.professionals-page {
+  max-width: 1180px;
+}
+
 h1 {
   margin: 0;
   font-family: var(--font-display);
@@ -131,6 +135,9 @@ label {
 input[type='text'],
 input[type='password'],
 input[type='url'],
+input[type='number'],
+input[type='email'],
+select,
 textarea {
   width: 100%;
   border: 1px solid var(--border);
@@ -158,6 +165,14 @@ textarea:focus {
 textarea {
   min-height: 4.5rem;
   resize: vertical;
+}
+
+select {
+  min-width: 0;
+  padding: 0.55rem 0.65rem;
+  font-size: 0.75rem;
+  color: var(--text);
+  cursor: pointer;
 }
 
 /* ── Buttons ── */
@@ -353,6 +368,80 @@ button:focus-visible {
 table {
   width: 100%;
   border-collapse: collapse;
+}
+
+.professionals-page .table-wrapper {
+  overflow-x: auto;
+}
+
+.professionals-page table {
+  min-width: 1080px;
+  table-layout: fixed;
+}
+
+.professionals-page th:nth-child(1),
+.professionals-page td:nth-child(1) { width: 19%; }
+
+.professionals-page th:nth-child(2),
+.professionals-page td:nth-child(2) { width: 20%; }
+
+.professionals-page th:nth-child(3),
+.professionals-page td:nth-child(3) { width: 22%; }
+
+.professionals-page th:nth-child(4),
+.professionals-page td:nth-child(4) { width: 29%; }
+
+.professionals-page th:nth-child(5),
+.professionals-page td:nth-child(5) { width: 10%; }
+
+.professionals-page td {
+  line-height: 1.45;
+}
+
+.professionals-page td strong {
+  display: block;
+  font-size: 0.9rem;
+  line-height: 1.35;
+}
+
+.professionals-page td small {
+  display: block;
+  margin-top: 0.2rem;
+  color: var(--faint);
+  font-size: 0.7rem;
+}
+
+.professionals-page td:nth-child(3) {
+  color: var(--muted);
+  font-size: 0.8125rem;
+}
+
+.manual-criteria {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
+.manual-criteria select {
+  width: 31%;
+  min-width: 96px;
+  background: var(--surface-2);
+  border-color: var(--border-strong);
+}
+
+.manual-criteria .save-criteria {
+  padding: 0.55rem 0.8rem;
+  font-size: 0.75rem;
+}
+
+.professionals-page .row-actions {
+  flex-direction: column;
+  align-items: stretch;
+}
+
+.professionals-page .row-actions button {
+  text-align: center;
 }
 
 thead th {

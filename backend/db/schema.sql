@@ -24,8 +24,16 @@ CREATE TABLE IF NOT EXISTS faqs (
 
 CREATE TABLE IF NOT EXISTS profesionales (
  id SERIAL PRIMARY KEY,
- nombre VARCHAR(255) NOT NULL,
- especialidad VARCHAR(255) DEFAULT '',
+ nombre_completo VARCHAR(255) NOT NULL,
+ nombre_especialidad VARCHAR(255) DEFAULT '',
+ nombre_especialidad2 VARCHAR(255) DEFAULT '',
+ nombre_especialidad3 VARCHAR(255) DEFAULT '',
+ id_profesional INTEGER UNIQUE,
+ notaweb TEXT DEFAULT '',
+ notaweb_manual TEXT DEFAULT '',
+ criterio_genero VARCHAR(32) DEFAULT '',
+ criterio_edad_desde INTEGER,
+ criterio_edad_hasta INTEGER,
  cargo VARCHAR(255) DEFAULT '',
  telefono VARCHAR(255) DEFAULT '',
  email VARCHAR(255) DEFAULT '',

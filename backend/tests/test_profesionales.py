@@ -140,6 +140,37 @@ class ProfesionalesApiTests(unittest.TestCase):
         self.assertEqual(response.status_code, 200, response.get_data(as_text=True))
         self.assertEqual(response.get_json()['imported'], 2)
 
+    def test_criteria_replaces_original_note_and_can_be_cleared(self):
+        response = self.client.post(
+            '/profesionales',
+            headers={'Authorization': f'Bearer {self.token}'},
+            json={
+                'nombreCompleto': 'Dr. Criterio',
+                'notaweb': 'Nota original de Gacitúa',
+                'criterio_genero': 'masculino',
+                'criterio_edad_desde': 5,
+                'criterio_edad_hasta': 10,
+            },
+        )
+        self.assertEqual(response.status_code, 201, response.get_data(as_text=True))
+        item = response.get_json()
+        self.assertEqual(
+            item['notaweb_efectiva'],
+            'Atiende pacientes de género masculino y entre 5 y 10 años inclusive.',
+        )
+
+        clear_response = self.client.put(
+            f"/profesionales/{item['id']}",
+            headers={'Authorization': f'Bearer {self.token}'},
+            json={
+                'criterio_genero': '',
+                'criterio_edad_desde': None,
+                'criterio_edad_hasta': None,
+            },
+        )
+        self.assertEqual(clear_response.status_code, 200, clear_response.get_data(as_text=True))
+        self.assertEqual(clear_response.get_json()['notaweb_efectiva'], 'Nota original de Gacitúa')
+
 
 if __name__ == '__main__':
     unittest.main()
