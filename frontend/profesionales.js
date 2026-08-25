@@ -2,7 +2,6 @@ const tableBody = document.getElementById('table-body');
 const tableStatus = document.getElementById('table-status');
 const logoutLink = document.getElementById('logout-link');
 
-const newBtn = document.getElementById('new-profesional-btn');
 const dialogOverlay = document.getElementById('profesional-dialog');
 const dialogTitle = document.getElementById('profesional-dialog-title');
 const form = document.getElementById('profesional-form');
@@ -81,7 +80,6 @@ function abrirDesdeURL() {
   openDialog(item);
 }
 
-newBtn.addEventListener('click', () => openDialog(null));
 cancelBtn.addEventListener('click', () => dialog.close());
 
 form.addEventListener('submit', async (event) => {
@@ -89,7 +87,10 @@ form.addEventListener('submit', async (event) => {
   const nombre = nombreInput.value.trim();
   if (!nombre) return;
 
-  const isEditing = editingId !== null;
+  // Alta no: los profesionales entran por la importacion desde Gacitua, que es la
+  // que trae el id_profesional. Desde acá solo se editan.
+  if (editingId === null) return;
+
   const payload = {
     nombre,
     sexo: sexoSelect.getValue() || null,
@@ -99,23 +100,17 @@ form.addEventListener('submit', async (event) => {
     genero: generoSelect.getValue() || null,
     prioridad: prioridadSelect.getValue() ? Number(prioridadSelect.getValue()) : null,
   };
-  const response = await tablero.fetchWithAuth(
-    isEditing ? `/profesionales/${editingId}` : '/profesionales',
-    {
-      method: isEditing ? 'PUT' : 'POST',
-      body: JSON.stringify(payload),
-    }
-  );
+  const response = await tablero.fetchWithAuth(`/profesionales/${editingId}`, {
+    method: 'PUT',
+    body: JSON.stringify(payload),
+  });
   if (!response.ok) {
     const error = await response.json().catch(() => ({}));
     tablero.toast(error.error || 'No se pudo guardar el profesional.', { variant: 'error' });
     return;
   }
   dialog.close();
-  tablero.toast(
-    isEditing ? 'Profesional actualizado' : 'Profesional creado',
-    { description: nombre }
-  );
+  tablero.toast('Profesional actualizado', { description: nombre });
   loadProfesionales();
 });
 
@@ -149,7 +144,7 @@ async function loadProfesionales() {
 function renderTable(items) {
   tableBody.innerHTML = '';
   if (items.length === 0) {
-    tableBody.innerHTML = '<tr><td colspan="6"><p class="hint">Todavía no hay profesionales cargados.</p></td></tr>';
+    tableBody.innerHTML = '<tr><td colspan="6"><p class="hint">Todavía no hay profesionales importados desde Gacitua.</p></td></tr>';
     return;
   }
   items.forEach((item) => {
@@ -164,8 +159,11 @@ function renderTable(items) {
     const prioridadCell = item.prioridad
       ? `<span class="priority-badge">${item.prioridad}</span>`
       : '<p class="empty-value">Sin prioridad</p>';
+    const idCell = item.id_profesional
+      ? `<p class="empty-value">Gacitua #${item.id_profesional}</p>`
+      : '<p class="empty-value">Sin vincular con Gacitua</p>';
     row.innerHTML = `
-      <td>${escapeHTML(item.nombre)}</td>
+      <td>${escapeHTML(item.nombre)}${idCell}</td>
       <td>${sexoCell}</td>
       <td>${espCell}</td>
       <td>${restrCell}</td>
@@ -207,9 +205,10 @@ function formatRestricciones(item) {
 }
 
 function openDialog(item) {
-  editingId = item ? item.id : null;
-  dialogTitle.textContent = item ? 'Editar profesional' : 'Nuevo profesional';
-  submitBtn.textContent = item ? 'Guardar' : 'Crear';
+  if (!item) return;
+  editingId = item.id;
+  dialogTitle.textContent = 'Editar profesional';
+  submitBtn.textContent = 'Guardar';
   nombreInput.value = item ? item.nombre : '';
   sexoSelect.setValue(item && item.sexo ? item.sexo : '');
   especialidadesSelect.setValue(item ? item.especialidad_ids : []);

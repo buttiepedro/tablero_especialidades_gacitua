@@ -29,10 +29,9 @@
     <section class="card">
       <div class="toolbar">
         <p class="hint">
-          Se sincronizan automáticamente con `POST /sync/profesionales`, o los cargás a mano acá.
+          Se importan desde Gacitua con `POST /sync/profesionales`: acá se editan (sexo, restricciones, especialidades) o se eliminan, no se crean.
           Se muestran ordenados por prioridad (1 = más prioritario); los que no tienen prioridad quedan al final.
         </p>
-        <button type="button" id="new-profesional-btn">+ Nuevo profesional</button>
       </div>
       <div class="table-wrapper">
         <table>
@@ -65,7 +64,7 @@
 
   <div class="dialog-overlay hidden" id="profesional-dialog">
     <div class="dialog" role="dialog" aria-modal="true" aria-labelledby="profesional-dialog-title">
-      <h2 id="profesional-dialog-title">Nuevo profesional</h2>
+      <h2 id="profesional-dialog-title">Editar profesional</h2>
       <form id="profesional-form">
         <label>
           Nombre
@@ -133,6 +132,6 @@
 
   <script src="config.js"></script>
   <script src="shared.js?v=20260825c"></script>
-  <script src="profesionales.js?v=20260825c"></script>
+  <script src="profesionales.js?v=20260825d"></script>
 </body>
 </html>

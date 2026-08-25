@@ -57,6 +57,9 @@ practica_especialidad = db.Table(
 
 class Profesional(db.Model):
     id = db.Column(db.Integer, primary_key=True)
+    # id del profesional en Gacitua. Es la clave real: el bot lo necesita para pedir
+    # turnos, y la importacion sincroniza contra el (no contra el nombre, que cambia).
+    id_profesional = db.Column(db.Integer, unique=True, nullable=True)
     nombre = db.Column(db.String(255), nullable=False)
     sexo = db.Column(db.String(20), nullable=True)
     edad_min = db.Column(db.Integer, nullable=True)
@@ -174,6 +177,15 @@ def _run_migrations():
                 with db.engine.begin() as conn:
                     conn.execute(text(
                         'ALTER TABLE profesional ADD COLUMN sexo VARCHAR(20)'
+                    ))
+            if 'id_profesional' not in columns:
+                with db.engine.begin() as conn:
+                    conn.execute(text(
+                        'ALTER TABLE profesional ADD COLUMN id_profesional INTEGER'
+                    ))
+                    conn.execute(text(
+                        'CREATE UNIQUE INDEX IF NOT EXISTS uq_profesional_id_profesional '
+                        'ON profesional(id_profesional)'
                     ))
 
 
@@ -352,31 +364,124 @@ def unlink_practica(item_id, target_id):
     return _unlink(item_id, Practica, target_id, 'practicas')
 
 
+def _normalizar_entrada_especialidad(item):
+    """Acepta "NOMBRE" (formato viejo) o {"id_especialidad": 5, "nombre": "CARDIOLOGIA"}."""
+    if isinstance(item, dict):
+        nombre = str(
+            item.get('nombre') or item.get('especialidad') or item.get('nombreEspecialidad') or ''
+        ).strip()
+        id_gacitua = item.get('id_especialidad')
+        if id_gacitua is None:
+            id_gacitua = item.get('id')
+    else:
+        nombre = str(item).strip()
+        id_gacitua = None
+
+    if not nombre:
+        return None
+
+    try:
+        id_gacitua = int(id_gacitua) if id_gacitua not in (None, '') else None
+    except (TypeError, ValueError):
+        id_gacitua = None
+
+    return {'nombre': nombre, 'id_especialidad': id_gacitua}
+
+
+def _sincronizar_secuencia(tabla):
+    """Al insertar ids explicitos (los de Gacitua) la secuencia del SERIAL no avanza: si
+    despues alguien crea una especialidad a mano desde el tablero, el id autoincremental
+    arranca en 1 y choca con uno existente. Esto la deja arriba del maximo."""
+    if not DATABASE_URL.startswith('postgresql'):
+        return
+    try:
+        db.session.execute(text(
+            "SELECT setval(pg_get_serial_sequence('{0}', 'id'), "
+            "(SELECT COALESCE(MAX(id), 0) + 1 FROM {0}), false)".format(tabla)
+        ))
+        db.session.commit()
+    except Exception:
+        # Si la tabla no usa secuencia, no pasa nada: no es parte del sync.
+        db.session.rollback()
+
+
 @app.route('/sync/especialidades', methods=['POST'])
 @requires_auth
 def sync_especialidades():
     payload = request.get_json(force=True, silent=True) or {}
-    names = payload.get('especialidades')
-    if not isinstance(names, list):
+    # "especialidades_con_id" es el formato nuevo (trae el id de Gacitua). Se lo manda en
+    # una clave aparte a proposito: asi una version vieja de esta API, que solo entiende
+    # nombres, sigue leyendo "especialidades" y no rompe nada.
+    recibidas = payload.get('especialidades_con_id')
+    if not isinstance(recibidas, list):
+        recibidas = payload.get('especialidades')
+    if not isinstance(recibidas, list):
         return jsonify({'error': 'Se esperaba un array bajo la clave "especialidades"'}), 400
-    cleaned = [str(n).strip() for n in names if str(n).strip()]
-    if not cleaned:
+
+    limpias = [x for x in (_normalizar_entrada_especialidad(i) for i in recibidas) if x]
+    if not limpias:
         return jsonify({'error': 'No se recibieron especialidades válidas'}), 400
 
-    existing = {item.nombre: item for item in Specialidad.query.all()}
-    received_set = set(cleaned)
+    unificadas = {}
+    for item in limpias:
+        clave = (
+            ('id', item['id_especialidad']) if item['id_especialidad'] is not None
+            else ('nombre', _norm_nombre(item['nombre']))
+        )
+        unificadas.setdefault(clave, item)
 
-    for name in cleaned:
-        if name in existing:
-            continue
-        db.session.add(Specialidad(nombre=name))
+    existentes = Specialidad.query.all()
+    por_id = {e.id: e for e in existentes}
+    por_nombre = {}
+    for e in existentes:
+        por_nombre.setdefault(_norm_nombre(e.nombre), e)
 
-    # Remove specialties that are no longer reported
-    for obsolete in [item for item in existing.values() if item.nombre not in received_set]:
-        db.session.delete(obsolete)
+    vistas = set()
+    creo_con_id = False
+    # Filas que ya existian con un id que no es el de Gacitua (p.ej. cargadas a mano antes
+    # de que el sync mandara el id). No se les puede cambiar el id sin romper los vinculos,
+    # asi que se informan para que se borren y se reimporten.
+    desincronizadas = []
+
+    for item in unificadas.values():
+        id_gacitua = item['id_especialidad']
+        actual = por_id.get(id_gacitua) if id_gacitua is not None else None
+        if actual is None:
+            actual = por_nombre.get(_norm_nombre(item['nombre']))
+            if actual is not None and id_gacitua is not None and actual.id != id_gacitua:
+                desincronizadas.append({
+                    'nombre': actual.nombre,
+                    'id_en_tablero': actual.id,
+                    'id_en_gacitua': id_gacitua,
+                })
+
+        if actual is None:
+            actual = Specialidad(nombre=item['nombre'])
+            if id_gacitua is not None:
+                # El id de Gacitua ES el id de la especialidad: es el mismo que despues
+                # usan las herramientas de turnos (id_especialidad).
+                actual.id = id_gacitua
+                creo_con_id = True
+            db.session.add(actual)
+        else:
+            # Solo el nombre viene de Gacitua; descripcion y atendido_por_bot son manuales.
+            actual.nombre = item['nombre']
+
+        vistas.add(actual)
+
+    # Elimina las especialidades que ya no se reportan
+    for obsoleta in [e for e in existentes if e not in vistas]:
+        db.session.delete(obsoleta)
 
     db.session.commit()
-    return jsonify({'imported': len(cleaned)})
+
+    if creo_con_id:
+        _sincronizar_secuencia(Specialidad.__tablename__)
+
+    respuesta = {'imported': len(unificadas)}
+    if desincronizadas:
+        respuesta['desincronizadas'] = desincronizadas
+    return jsonify(respuesta)
 
 
 SEXOS_VALIDOS = {'masculino', 'femenino'}
@@ -454,6 +559,7 @@ def _validate_edad(edad_min, edad_max):
 def _serialize_profesional(item):
     return {
         'id': item.id,
+        'id_profesional': item.id_profesional,
         'nombre': item.nombre,
         'sexo': item.sexo,
         'especialidad_ids': [e.id for e in item.especialidades],
@@ -477,39 +583,12 @@ def list_profesionales():
 @app.route('/profesionales', methods=['POST'])
 @requires_auth
 def create_profesional():
-    data = request.get_json(force=True, silent=True) or {}
-    nombre = str(data.get('nombre', '')).strip()
-    if not nombre:
-        return jsonify({'error': 'El nombre del profesional es obligatorio'}), 400
-
-    especialidades, err = _resolve_especialidades(data.get('especialidad_ids', []))
-    if err:
-        return jsonify({'error': err}), 400
-    sexo, err = _validate_sexo(data.get('sexo'))
-    if err:
-        return jsonify({'error': err}), 400
-    genero, err = _validate_genero(data.get('genero'))
-    if err:
-        return jsonify({'error': err}), 400
-    prioridad, err = _validate_prioridad(data.get('prioridad'))
-    if err:
-        return jsonify({'error': err}), 400
-    edad_min, edad_max, err = _validate_edad(data.get('edad_min'), data.get('edad_max'))
-    if err:
-        return jsonify({'error': err}), 400
-
-    item = Profesional(
-        nombre=nombre,
-        sexo=sexo,
-        especialidades=especialidades,
-        edad_min=edad_min,
-        edad_max=edad_max,
-        genero=genero,
-        prioridad=prioridad,
-    )
-    db.session.add(item)
-    db.session.commit()
-    return jsonify(_serialize_profesional(item)), 201
+    # Los profesionales se dan de alta SOLO desde la importacion (POST /sync/profesionales),
+    # que es la unica que trae el id_profesional de Gacitua. Un profesional cargado a mano
+    # no tendria ese id y el bot no podria buscarle ni reservarle turnos.
+    return jsonify({
+        'error': 'Los profesionales se importan desde Gacitua. Desde el tablero se editan o se eliminan, no se crean.'
+    }), 405
 
 
 @app.route('/profesionales/<int:item_id>', methods=['PUT'])
@@ -565,31 +644,106 @@ def delete_profesional(item_id):
     return '', 204
 
 
+def _norm_nombre(value):
+    """Nombre comparable: sin dobles espacios y en mayusculas."""
+    return ' '.join(str(value or '').split()).upper()
+
+
+def _normalizar_entrada_profesional(item):
+    """Acepta tanto "NOMBRE" (formato viejo) como
+    {"id_profesional": 8, "nombre": "...", "especialidades": ["CARDIOLOGIA"]}."""
+    if isinstance(item, dict):
+        nombre = str(item.get('nombre') or item.get('nombreCompleto') or '').strip()
+        id_gacitua = item.get('id_profesional')
+        especialidades = item.get('especialidades') or []
+    else:
+        nombre = str(item).strip()
+        id_gacitua = None
+        especialidades = []
+
+    if not nombre:
+        return None
+
+    try:
+        id_gacitua = int(id_gacitua) if id_gacitua not in (None, '') else None
+    except (TypeError, ValueError):
+        id_gacitua = None
+
+    if not isinstance(especialidades, list):
+        especialidades = [especialidades]
+
+    return {
+        'nombre': nombre,
+        'id_profesional': id_gacitua,
+        'especialidades': [str(e).strip() for e in especialidades if str(e).strip()],
+    }
+
+
 @app.route('/sync/profesionales', methods=['POST'])
 @requires_auth
 def sync_profesionales():
     payload = request.get_json(force=True, silent=True) or {}
-    names = payload.get('profesionales')
-    if not isinstance(names, list):
+    recibidos = payload.get('profesionales')
+    if not isinstance(recibidos, list):
         return jsonify({'error': 'Se esperaba un array bajo la clave "profesionales"'}), 400
-    cleaned = [str(n).strip() for n in names if str(n).strip()]
-    if not cleaned:
+
+    limpios = [x for x in (_normalizar_entrada_profesional(i) for i in recibidos) if x]
+    if not limpios:
         return jsonify({'error': 'No se recibieron profesionales válidos'}), 400
 
-    existing = {item.nombre: item for item in Profesional.query.all()}
-    received_set = set(cleaned)
+    # Gacitua devuelve una fila por profesional-especialidad: se unifica por id.
+    unificados = {}
+    for item in limpios:
+        clave = (
+            ('id', item['id_profesional']) if item['id_profesional'] is not None
+            else ('nombre', _norm_nombre(item['nombre']))
+        )
+        actual = unificados.setdefault(clave, dict(item, especialidades=[]))
+        for esp in item['especialidades']:
+            if esp not in actual['especialidades']:
+                actual['especialidades'].append(esp)
 
-    for name in cleaned:
-        if name in existing:
-            continue
-        db.session.add(Profesional(nombre=name))
+    existentes = Profesional.query.all()
+    por_id = {p.id_profesional: p for p in existentes if p.id_profesional is not None}
+    por_nombre = {}
+    for p in existentes:
+        por_nombre.setdefault(_norm_nombre(p.nombre), p)
+
+    especialidades_por_nombre = {}
+    for esp in Specialidad.query.all():
+        especialidades_por_nombre.setdefault(_norm_nombre(esp.nombre), esp)
+
+    vistos = set()
+    for item in unificados.values():
+        actual = por_id.get(item['id_profesional']) if item['id_profesional'] is not None else None
+        # Sin match por id puede ser una fila vieja (importada antes de que existiera
+        # id_profesional): se la vincula por nombre en vez de duplicarla.
+        if actual is None:
+            actual = por_nombre.get(_norm_nombre(item['nombre']))
+
+        if actual is None:
+            actual = Profesional(nombre=item['nombre'])
+            # Las especialidades se setean SOLO al crearlo: despues manda lo que se
+            # haya editado a mano en el tablero.
+            actual.especialidades = [
+                especialidades_por_nombre[_norm_nombre(e)]
+                for e in item['especialidades']
+                if _norm_nombre(e) in especialidades_por_nombre
+            ]
+            db.session.add(actual)
+        else:
+            actual.nombre = item['nombre']
+
+        if item['id_profesional'] is not None:
+            actual.id_profesional = item['id_profesional']
+        vistos.add(actual)
 
     # Elimina los profesionales que ya no se reportan
-    for obsolete in [item for item in existing.values() if item.nombre not in received_set]:
-        db.session.delete(obsolete)
+    for obsoleto in [p for p in existentes if p not in vistos]:
+        db.session.delete(obsoleto)
 
     db.session.commit()
-    return jsonify({'imported': len(cleaned)})
+    return jsonify({'imported': len(unificados)})
 
 
 def _serialize_practica(item):
