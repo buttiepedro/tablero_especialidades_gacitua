@@ -200,14 +200,27 @@
         if (left + ancho > window.innerWidth - 8) left = rect.right - ancho;
         popover.style.left = `${Math.max(8, left)}px`;
       }
-      const spaceBelow = window.innerHeight - rect.bottom;
-      if (spaceBelow < 260 && rect.top > spaceBelow) {
+      const MARGEN = 8;
+      const spaceBelow = window.innerHeight - rect.bottom - 6 - MARGEN;
+      const spaceAbove = rect.top - 6 - MARGEN;
+      // El max-height se ajusta al espacio real disponible (topeado en 260px)
+      // para que la lista se pueda scrollear entera en vez de quedar cortada.
+      if (spaceBelow < 260 && spaceAbove > spaceBelow) {
         popover.style.top = 'auto';
         popover.style.bottom = `${window.innerHeight - rect.top + 6}px`;
+        popover.style.maxHeight = `${Math.max(120, Math.min(260, spaceAbove))}px`;
       } else {
         popover.style.bottom = 'auto';
         popover.style.top = `${rect.bottom + 6}px`;
+        popover.style.maxHeight = `${Math.max(120, Math.min(260, spaceBelow))}px`;
       }
+    }
+
+    // El scroll propio del popover (lista larga de opciones) no debe cerrarlo ni
+    // reposicionarlo; solo el scroll de un contenedor externo mueve el trigger.
+    function handleScroll(event) {
+      if (popover.contains(event.target)) return;
+      reposition();
     }
 
     function handleOutside(event) {
@@ -239,7 +252,7 @@
       wrapper.removeAttribute('data-open');
       document.removeEventListener('mousedown', handleOutside, true);
       document.removeEventListener('keydown', handleKey, true);
-      window.removeEventListener('scroll', close, true);
+      window.removeEventListener('scroll', handleScroll, true);
       window.removeEventListener('resize', reposition);
     }
 
@@ -255,7 +268,7 @@
       reposition();
       document.addEventListener('mousedown', handleOutside, true);
       document.addEventListener('keydown', handleKey, true);
-      window.addEventListener('scroll', close, true);
+      window.addEventListener('scroll', handleScroll, true);
       window.addEventListener('resize', reposition);
       const first = popover.querySelector('[role="option"]');
       if (first) first.focus();
