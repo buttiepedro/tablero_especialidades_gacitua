@@ -259,20 +259,14 @@ def list_especialidades():
 @app.route('/especialidades', methods=['POST'])
 @requires_auth
 def create_especialidad():
-    data = request.get_json(force=True, silent=True) or {}
-    nombre = str(data.get('especialidad', '')).strip()
-    if not nombre:
-        return jsonify({'error': 'El nombre de la especialidad es obligatorio'}), 400
-    if Specialidad.query.filter_by(nombre=nombre).first():
-        return jsonify({'error': 'Ya existe una especialidad con ese nombre'}), 400
-    item = Specialidad(
-        nombre=nombre,
-        descripcion=str(data.get('descripcion', '') or ''),
-        atendido_por_bot=bool(data.get('atendido_por_bot', True)),
-    )
-    db.session.add(item)
-    db.session.commit()
-    return jsonify(_serialize_especialidad(item)), 201
+    # Las especialidades se dan de alta SOLO desde la importacion (POST /sync/especialidades):
+    # su id ES el id de Gacitua, y los turnos se piden con ese id. Una especialidad cargada a
+    # mano tendria un id que Gacitua no conoce, el bot la ofreceria igual (esta en el tablero,
+    # asi que pasa el gate de atendido_por_bot) y recien al buscar horarios se quedaria sin
+    # profesionales. Lo que la clinica hace y Gacitua no agenda va cargado como practica.
+    return jsonify({
+        'error': 'Las especialidades se importan desde Gacitua. Lo que Gacitua no agenda se carga como práctica.'
+    }), 405
 
 
 @app.route('/especialidades/<int:item_id>', methods=['DELETE'])

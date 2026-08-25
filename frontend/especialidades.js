@@ -2,7 +2,6 @@ const tableBody = document.getElementById('table-body');
 const tableStatus = document.getElementById('table-status');
 const logoutLink = document.getElementById('logout-link');
 
-const newBtn = document.getElementById('new-especialidad-btn');
 const dialogOverlay = document.getElementById('especialidad-dialog');
 const dialogTitle = document.getElementById('especialidad-dialog-title');
 const form = document.getElementById('especialidad-form');
@@ -61,7 +60,6 @@ document.addEventListener('DOMContentLoaded', () => {
   loadEspecialidades();
 });
 
-newBtn.addEventListener('click', () => openDialog(null));
 cancelBtn.addEventListener('click', () => dialog.close());
 
 form.addEventListener('submit', async (event) => {
@@ -69,29 +67,26 @@ form.addEventListener('submit', async (event) => {
   const especialidad = nombreInput.value.trim();
   if (!especialidad) return;
 
-  const isEditing = editingId !== null;
+  // Alta no: las especialidades entran por la importacion desde Gacitua, que es la que
+  // define su id. Desde acá sólo se editan.
+  if (editingId === null) return;
+
   const payload = {
     especialidad,
     descripcion: descripcionInput.value.trim(),
     atendido_por_bot: botInput.checked,
   };
-  const response = await tablero.fetchWithAuth(
-    isEditing ? `/especialidades/${editingId}` : '/especialidades',
-    {
-      method: isEditing ? 'PUT' : 'POST',
-      body: JSON.stringify(payload),
-    }
-  );
+  const response = await tablero.fetchWithAuth(`/especialidades/${editingId}`, {
+    method: 'PUT',
+    body: JSON.stringify(payload),
+  });
   if (!response.ok) {
     const error = await response.json().catch(() => ({}));
     tablero.toast(error.error || 'No se pudo guardar la especialidad.', { variant: 'error' });
     return;
   }
   dialog.close();
-  tablero.toast(
-    isEditing ? 'Especialidad actualizada' : 'Especialidad creada',
-    { description: especialidad }
-  );
+  tablero.toast('Especialidad actualizada', { description: especialidad });
   loadEspecialidades();
 });
 
@@ -433,12 +428,13 @@ function actualizarContador(item) {
 /* ── Especialidad ──────────────────────────────────────────────────────── */
 
 function openDialog(item) {
-  editingId = item ? item.id : null;
-  dialogTitle.textContent = item ? 'Editar especialidad' : 'Nueva especialidad';
-  submitBtn.textContent = item ? 'Guardar' : 'Crear';
-  nombreInput.value = item ? item.especialidad : '';
-  descripcionInput.value = item ? item.descripcion || '' : '';
-  botInput.checked = item ? item.atendido_por_bot : true;
+  if (!item) return;
+  editingId = item.id;
+  dialogTitle.textContent = 'Editar especialidad';
+  submitBtn.textContent = 'Guardar';
+  nombreInput.value = item.especialidad;
+  descripcionInput.value = item.descripcion || '';
+  botInput.checked = item.atendido_por_bot;
   dialog.open();
   nombreInput.focus();
 }

@@ -29,9 +29,9 @@
     <section class="card">
       <div class="toolbar">
         <p class="hint">
-          Se sincronizan automáticamente con `POST /sync/especialidades`, o las cargás a mano acá.
+          Se importan desde Gacitua con `POST /sync/especialidades`: acá se editan o se eliminan, no se crean.
+          Lo que la clínica hace y Gacitua no agenda va cargado como práctica.
         </p>
-        <button type="button" id="new-especialidad-btn">+ Nueva especialidad</button>
       </div>
       <div class="table-wrapper">
         <table>
@@ -63,7 +63,7 @@
 
   <div class="dialog-overlay hidden" id="especialidad-dialog">
     <div class="dialog" role="dialog" aria-modal="true" aria-labelledby="especialidad-dialog-title">
-      <h2 id="especialidad-dialog-title">Nueva especialidad</h2>
+      <h2 id="especialidad-dialog-title">Editar especialidad</h2>
       <form id="especialidad-form">
         <label>
           Nombre
@@ -90,6 +90,6 @@
 
   <script src="config.js"></script>
   <script src="shared.js?v=20260825c"></script>
-  <script src="especialidades.js?v=20260825b"></script>
+  <script src="especialidades.js?v=20260825c"></script>
 </body>
 </html>
