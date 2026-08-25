@@ -16,7 +16,7 @@ load_dotenv()
 app = Flask(__name__, static_folder="static", template_folder="templates")
 CORS(app)
 
-DATABASE_URL = os.environ.get('DATABASE_URL', 'sqlite:///data/especialidades.db')
+DATABASE_URL = os.environ.get('DATABASE_URL', 'sqlite:////app/data/especialidades.db')
 DB_SCHEMA = os.environ.get('DB_SCHEMA', '')
 
 app.config['SQLALCHEMY_DATABASE_URI'] = DATABASE_URL
@@ -135,11 +135,10 @@ def ensure_schema():
 
 
 def _ensure_database_path():
-    if DATABASE_URL.startswith('sqlite:///'):
-        with app.app_context():
-            db_file = db.engine.url.database
-        if db_file:
-            Path(db_file).parent.mkdir(parents=True, exist_ok=True)
+    if DATABASE_URL.startswith('sqlite:'):
+        # Ensure data directory exists for SQLite
+        db_dir = Path('/app/data')
+        db_dir.mkdir(parents=True, exist_ok=True)
 
 
 def _create_tables():
