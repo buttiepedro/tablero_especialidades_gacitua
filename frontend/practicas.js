@@ -1,6 +1,7 @@
 const tableBody = document.getElementById('table-body');
 const tableStatus = document.getElementById('table-status');
 const logoutLink = document.getElementById('logout-link');
+const searchInput = document.getElementById('table-search');
 
 const newBtn = document.getElementById('new-practica-btn');
 const dialogOverlay = document.getElementById('practica-dialog');
@@ -20,6 +21,18 @@ const especialidadesSelect = tablero.createMultiSelect(
 
 let editingId = null;
 let currentItems = [];
+
+const controls = tablero.createTableControls({
+  table: document.querySelector('.table-wrapper table'),
+  searchInput,
+  searchFields: (item) => [item.nombre, item.descripcion, ...(item.especialidades || [])],
+  columns: {
+    nombre: (item) => item.nombre,
+    especialidades: (item) => (item.especialidades || []).join(', '),
+    descripcion: (item) => item.descripcion || '',
+  },
+  onChange: renderTable,
+});
 
 logoutLink.addEventListener('click', () => {
   tablero.clearToken();
@@ -101,8 +114,7 @@ async function loadPracticas() {
       throw new Error('No se pudo cargar la lista');
     }
     currentItems = await response.json();
-    renderTable(currentItems);
-    tableStatus.textContent = `${currentItems.length} prácticas.`;
+    controls.setRows(currentItems);
   } catch (err) {
     tableStatus.textContent = '';
     tablero.toast(err.message, { variant: 'error' });
@@ -111,8 +123,12 @@ async function loadPracticas() {
 
 function renderTable(items) {
   tableBody.innerHTML = '';
+  actualizarEstado(items);
   if (items.length === 0) {
-    tableBody.innerHTML = '<tr><td colspan="5"><p class="hint">Todavía no hay prácticas cargadas.</p></td></tr>';
+    const vacio = controls.isFiltered()
+      ? 'Ninguna práctica coincide con la búsqueda.'
+      : 'Todavía no hay prácticas cargadas.';
+    tableBody.innerHTML = `<tr><td colspan="5"><p class="hint">${vacio}</p></td></tr>`;
     return;
   }
   items.forEach((item) => {
@@ -152,6 +168,14 @@ function renderTable(items) {
   tableBody.querySelectorAll('button[data-delete]').forEach((button) => {
     button.addEventListener('click', () => deletePractica(button.dataset.delete));
   });
+}
+
+// Con búsqueda activa el contador dice cuántas se están viendo del total.
+function actualizarEstado(visibles) {
+  const total = currentItems.length;
+  tableStatus.textContent = controls.isFiltered()
+    ? `${visibles.length} de ${total} prácticas.`
+    : `${total} prácticas.`;
 }
 
 function openDialog(item) {

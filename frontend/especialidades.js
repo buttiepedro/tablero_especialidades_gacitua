@@ -1,6 +1,7 @@
 const tableBody = document.getElementById('table-body');
 const tableStatus = document.getElementById('table-status');
 const logoutLink = document.getElementById('logout-link');
+const searchInput = document.getElementById('table-search');
 
 const dialogOverlay = document.getElementById('especialidad-dialog');
 const dialogTitle = document.getElementById('especialidad-dialog-title');
@@ -48,6 +49,17 @@ let currentItems = [];
 let catalogos = { profesionales: [], practicas: [] };
 // id de especialidad -> { tr, cleanups } de la fila de vínculos desplegada.
 const expandidas = new Map();
+
+const controls = tablero.createTableControls({
+  table: document.querySelector('.table-wrapper table'),
+  searchInput,
+  searchFields: (item) => [item.especialidad, item.descripcion],
+  columns: {
+    especialidad: (item) => item.especialidad,
+    descripcion: (item) => item.descripcion || '',
+  },
+  onChange: renderTable,
+});
 
 logoutLink.addEventListener('click', () => {
   tablero.clearToken();
@@ -118,8 +130,7 @@ async function loadEspecialidades() {
       throw new Error('No se pudo cargar la lista');
     }
     currentItems = await response.json();
-    renderTable(currentItems);
-    tableStatus.textContent = `${currentItems.length} especialidades.`;
+    controls.setRows(currentItems);
   } catch (err) {
     tableStatus.textContent = '';
     tablero.toast(err.message, { variant: 'error' });
@@ -129,8 +140,12 @@ async function loadEspecialidades() {
 function renderTable(items) {
   colapsarTodas();
   tableBody.innerHTML = '';
+  actualizarEstado(items);
   if (items.length === 0) {
-    tableBody.innerHTML = `<tr><td colspan="${COLUMNAS}"><p class="hint">Todavía no hay especialidades cargadas.</p></td></tr>`;
+    const vacio = controls.isFiltered()
+      ? 'Ninguna especialidad coincide con la búsqueda.'
+      : 'Todavía no hay especialidades cargadas.';
+    tableBody.innerHTML = `<tr><td colspan="${COLUMNAS}"><p class="hint">${vacio}</p></td></tr>`;
     return;
   }
   items.forEach((item) => {
@@ -181,6 +196,16 @@ function renderTable(items) {
   tableBody.querySelectorAll('button[data-delete]').forEach((button) => {
     button.addEventListener('click', () => deleteEspecialidad(button.dataset.delete));
   });
+}
+
+// Con búsqueda activa el contador dice cuántas se están viendo del total.
+function actualizarEstado(visibles) {
+  const total = currentItems.length;
+  if (controls.isFiltered()) {
+    tableStatus.textContent = `${visibles.length} de ${total} especialidades.`;
+    return;
+  }
+  tableStatus.textContent = `${total} especialidades.`;
 }
 
 function contarVinculos(item) {
@@ -342,17 +367,26 @@ function buildPicker(item, seccion, panel, abierta) {
   const yaVinculados = new Set((item[seccion.key] || []).map((v) => v.id));
   const catalogo = catalogos[seccion.key] || [];
 
-  function renderOpciones() {
-    popover.innerHTML = '';
+  function renderOpciones(query = '') {
+    const host = dropdown ? dropdown.optionsHost : popover;
+    host.innerHTML = '';
     const disponibles = catalogo.filter((c) => !yaVinculados.has(c.id));
     if (disponibles.length === 0) {
       const vacio = document.createElement('p');
       vacio.className = 'ms-empty hint';
       vacio.textContent = catalogo.length === 0 ? seccion.sinCatalogo : seccion.todoVinculado;
-      popover.appendChild(vacio);
+      host.appendChild(vacio);
       return;
     }
-    disponibles.forEach((opcion) => {
+    const visibles = disponibles.filter((c) => tablero.matchesQuery(c.nombre, query));
+    if (visibles.length === 0) {
+      const vacio = document.createElement('p');
+      vacio.className = 'ms-empty hint';
+      vacio.textContent = 'Sin resultados.';
+      host.appendChild(vacio);
+      return;
+    }
+    visibles.forEach((opcion) => {
       const row = tablero.buildOptionRow({ selected: false, label: opcion.nombre, checkbox: false });
       row.addEventListener('click', () => {
         dropdown.close();
@@ -367,7 +401,7 @@ function buildPicker(item, seccion, panel, abierta) {
           errMsg: 'No se pudo vincular',
         });
       });
-      popover.appendChild(row);
+      host.appendChild(row);
     });
   }
 
@@ -377,6 +411,8 @@ function buildPicker(item, seccion, panel, abierta) {
     popover,
     onOpen: renderOpciones,
     matchTriggerWidth: false,
+    searchable: true,
+    searchPlaceholder: `Buscar ${seccion.titulo.toLowerCase()}`,
   });
   // createDropdown hace portal del popover a <body>: al colapsar la fila hay
   // que cerrarlo (saca los listeners globales) y sacarlo del DOM.

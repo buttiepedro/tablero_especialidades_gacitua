@@ -19,6 +19,18 @@ const textoDialogCancel = document.getElementById('texto-dialog-cancel');
 const textoDialog = tablero.setupDialog(textoDialogOverlay);
 
 let editingTextoId = null;
+let currentTextos = [];
+
+const controls = tablero.createTableControls({
+  table: document.querySelector('.table-wrapper table'),
+  searchInput: document.getElementById('texto-search'),
+  searchFields: (t) => [t.nombre, t.texto],
+  columns: {
+    nombre: (t) => t.nombre,
+    texto: (t) => t.texto,
+  },
+  onChange: renderTextos,
+});
 
 function escapeHTML(str) {
   return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
@@ -27,14 +39,21 @@ function escapeHTML(str) {
 async function loadTextos() {
   const response = await tablero.fetchWithAuth('/textos');
   if (!response.ok) return;
-  const textos = await response.json();
-  renderTextos(textos);
+  currentTextos = await response.json();
+  controls.setRows(currentTextos);
 }
 
 function renderTextos(textos) {
   textoTableBody.innerHTML = '';
+  // El contador sólo aparece filtrando: sin filtro la tabla ya se ve entera.
+  statusEl.textContent = controls.isFiltered()
+    ? `${textos.length} de ${currentTextos.length} textos.`
+    : '';
   if (textos.length === 0) {
-    textoTableBody.innerHTML = '<tr><td colspan="3"><p class="hint">Todavía no hay textos predefinidos.</p></td></tr>';
+    const vacio = controls.isFiltered()
+      ? 'Ningún texto coincide con la búsqueda.'
+      : 'Todavía no hay textos predefinidos.';
+    textoTableBody.innerHTML = `<tr><td colspan="3"><p class="hint">${vacio}</p></td></tr>`;
     return;
   }
   textos.forEach((t) => {

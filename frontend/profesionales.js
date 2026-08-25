@@ -1,6 +1,7 @@
 const tableBody = document.getElementById('table-body');
 const tableStatus = document.getElementById('table-status');
 const logoutLink = document.getElementById('logout-link');
+const searchInput = document.getElementById('table-search');
 
 const dialogOverlay = document.getElementById('profesional-dialog');
 const dialogTitle = document.getElementById('profesional-dialog-title');
@@ -53,6 +54,21 @@ const prioridadSelect = tablero.createSelect(
 
 let editingId = null;
 let currentItems = [];
+
+// Sin orden elegido se respeta el que trae el backend (prioridad asc, nulls al
+// final). Las restricciones se ordenan por edad mínima, que es lo comparable.
+const controls = tablero.createTableControls({
+  table: document.querySelector('.table-wrapper table'),
+  searchInput,
+  searchFields: (item) => [item.nombre, ...(item.especialidades || [])],
+  columns: {
+    nombre: (item) => item.nombre,
+    sexo: (item) => item.sexo || '',
+    especialidades: (item) => (item.especialidades || []).join(', '),
+    restricciones: (item) => (item.edad_min != null ? item.edad_min : (item.edad_max != null ? 0 : '')),
+  },
+  onChange: renderTable,
+});
 
 logoutLink.addEventListener('click', () => {
   tablero.clearToken();
@@ -133,8 +149,7 @@ async function loadProfesionales() {
       throw new Error('No se pudo cargar la lista');
     }
     currentItems = await response.json();
-    renderTable(currentItems);
-    tableStatus.textContent = `${currentItems.length} profesionales.`;
+    controls.setRows(currentItems);
   } catch (err) {
     tableStatus.textContent = '';
     tablero.toast(err.message, { variant: 'error' });
@@ -143,8 +158,12 @@ async function loadProfesionales() {
 
 function renderTable(items) {
   tableBody.innerHTML = '';
+  actualizarEstado(items);
   if (items.length === 0) {
-    tableBody.innerHTML = '<tr><td colspan="6"><p class="hint">Todavía no hay profesionales importados desde Gacitua.</p></td></tr>';
+    const vacio = controls.isFiltered()
+      ? 'Ningún profesional coincide con la búsqueda.'
+      : 'Todavía no hay profesionales importados desde Gacitua.';
+    tableBody.innerHTML = `<tr><td colspan="6"><p class="hint">${vacio}</p></td></tr>`;
     return;
   }
   items.forEach((item) => {
@@ -184,6 +203,14 @@ function renderTable(items) {
   tableBody.querySelectorAll('button[data-delete]').forEach((button) => {
     button.addEventListener('click', () => deleteProfesional(button.dataset.delete));
   });
+}
+
+// Con búsqueda activa el contador dice cuántos se están viendo del total.
+function actualizarEstado(visibles) {
+  const total = currentItems.length;
+  tableStatus.textContent = controls.isFiltered()
+    ? `${visibles.length} de ${total} profesionales.`
+    : `${total} profesionales.`;
 }
 
 function formatRestricciones(item) {

@@ -12,6 +12,18 @@ const faqDialogCancel = document.getElementById('faq-dialog-cancel');
 const faqDialog = tablero.setupDialog(faqDialogOverlay);
 
 let editingFaqId = null;
+let currentFaqs = [];
+
+const controls = tablero.createTableControls({
+  table: document.querySelector('.table-wrapper table'),
+  searchInput: document.getElementById('faq-search'),
+  searchFields: (faq) => [faq.question, faq.answer],
+  columns: {
+    question: (faq) => faq.question,
+    answer: (faq) => faq.answer,
+  },
+  onChange: renderFaqs,
+});
 
 logoutBtn.addEventListener('click', () => {
   tablero.clearToken();
@@ -56,9 +68,8 @@ async function loadFaqs() {
     if (!response.ok) {
       throw new Error('No se pudieron cargar las FAQs.');
     }
-    const faqs = await response.json();
-    renderFaqs(faqs);
-    faqStatus.textContent = '';
+    currentFaqs = await response.json();
+    controls.setRows(currentFaqs);
   } catch (err) {
     faqStatus.textContent = '';
     tablero.toast(err.message, { variant: 'error' });
@@ -67,8 +78,15 @@ async function loadFaqs() {
 
 function renderFaqs(faqs) {
   faqTableBody.innerHTML = '';
+  // El contador sólo aparece filtrando: sin filtro la tabla ya se ve entera.
+  faqStatus.textContent = controls.isFiltered()
+    ? `${faqs.length} de ${currentFaqs.length} preguntas.`
+    : '';
   if (faqs.length === 0) {
-    faqTableBody.innerHTML = '<tr><td colspan="3"><p class="hint">Todavía no hay preguntas frecuentes.</p></td></tr>';
+    const vacio = controls.isFiltered()
+      ? 'Ninguna pregunta coincide con la búsqueda.'
+      : 'Todavía no hay preguntas frecuentes.';
+    faqTableBody.innerHTML = `<tr><td colspan="3"><p class="hint">${vacio}</p></td></tr>`;
     return;
   }
   faqs.forEach((faq) => {

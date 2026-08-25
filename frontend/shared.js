@@ -173,7 +173,29 @@
     chevronDown: '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6" /></svg>',
     check: '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5" /></svg>',
     close: '<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18" /><path d="m6 6 12 12" /></svg>',
+    search: '<svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8" /><path d="m21 21-4.3-4.3" /></svg>',
+    sort: '<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="m7 15 5 5 5-5" /><path d="m7 9 5-5 5 5" /></svg>',
+    sortAsc: '<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="m7 14 5-5 5 5" /></svg>',
+    sortDesc: '<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="m7 10 5 5 5-5" /></svg>',
   };
+
+  // Normaliza para buscar: sin acentos, sin mayúsculas. "cardiología" matchea
+  // escribiendo "cardiologia" y viceversa, que es como la gente tipea acá.
+  function normalize(value) {
+    return String(value == null ? '' : value)
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .toLowerCase()
+      .trim();
+  }
+
+  // Match por términos sueltos: "gonz ped" encuentra "González, Pedro".
+  function matchesQuery(haystack, query) {
+    const q = normalize(query);
+    if (!q) return true;
+    const target = normalize(haystack);
+    return q.split(/\s+/).every((term) => target.includes(term));
+  }
 
   const openDropdowns = new Set();
 
@@ -181,9 +203,43 @@
   // multiselect abierto dentro de un dialog con overflow-y:auto no quede
   // recortado por ese scroll. Se cierra al hacer scroll para no arrastrar una
   // posición vieja.
-  function createDropdown({ wrapper, trigger, popover, onOpen, matchTriggerWidth = true }) {
+  // searchable: agrega un buscador fijo arriba del popover. onOpen recibe el
+  // texto tipeado, y quien lo pasa decide qué opciones pintar con él; el
+  // dropdown sólo se ocupa del input, el foco y el reset al cerrar.
+  function createDropdown({ wrapper, trigger, popover, onOpen, matchTriggerWidth = true, searchable = false, searchPlaceholder = 'Buscar...' }) {
     document.body.appendChild(popover);
     let isOpen = false;
+
+    // Lista y buscador van en contenedores separados: el buscador queda fijo y
+    // sólo scrollea la lista, si no al tipear se pierde de vista.
+    let searchInput = null;
+    let optionsHost = popover;
+    if (searchable) {
+      popover.classList.add('has-search');
+      const searchBox = document.createElement('div');
+      searchBox.className = 'dd-search';
+      const icon = document.createElement('span');
+      icon.className = 'dd-search-icon';
+      icon.innerHTML = ICONS.search;
+      searchInput = document.createElement('input');
+      searchInput.type = 'text';
+      searchInput.className = 'dd-search-input';
+      searchInput.placeholder = searchPlaceholder;
+      searchInput.setAttribute('aria-label', searchPlaceholder);
+      // El popover está portado a <body>, fuera del <form>: aún así, Enter no
+      // debe disparar nada raro ni cerrar el dialog.
+      searchInput.addEventListener('keydown', (event) => {
+        if (event.key === 'Enter') event.preventDefault();
+      });
+      searchInput.addEventListener('input', () => {
+        if (onOpen) onOpen(searchInput.value);
+        reposition();
+      });
+      searchBox.append(icon, searchInput);
+      optionsHost = document.createElement('div');
+      optionsHost.className = 'dd-options';
+      popover.append(searchBox, optionsHost);
+    }
 
     function reposition() {
       const rect = trigger.getBoundingClientRect();
@@ -237,8 +293,12 @@
         const opts = Array.from(popover.querySelectorAll('[role="option"]'));
         if (!opts.length) return;
         event.preventDefault();
+        // Desde el buscador, ArrowDown entra a la lista por el primero (y
+        // ArrowUp por el último): indexOf da -1 y esa es la rama que aplica.
         const idx = opts.indexOf(document.activeElement);
-        const next = event.key === 'ArrowDown' ? opts[idx + 1] || opts[0] : opts[idx - 1] || opts[opts.length - 1];
+        const next = event.key === 'ArrowDown'
+          ? opts[idx + 1] || opts[0]
+          : (idx === -1 ? opts[opts.length - 1] : opts[idx - 1] || opts[opts.length - 1]);
         next.focus();
       }
     }
@@ -261,7 +321,8 @@
       openDropdowns.forEach((closeOther) => closeOther());
       isOpen = true;
       openDropdowns.add(close);
-      if (onOpen) onOpen();
+      if (searchInput) searchInput.value = '';
+      if (onOpen) onOpen(searchInput ? '' : undefined);
       popover.classList.remove('hidden');
       trigger.setAttribute('aria-expanded', 'true');
       wrapper.setAttribute('data-open', '');
@@ -270,12 +331,23 @@
       document.addEventListener('keydown', handleKey, true);
       window.addEventListener('scroll', handleScroll, true);
       window.addEventListener('resize', reposition);
+      // Con buscador el foco va al input: se abre y se tipea de una. Va en el
+      // frame siguiente porque el mousedown del trigger todavía no terminó de
+      // resolver su foco por defecto y se lo llevaría puesto.
+      if (searchInput) {
+        requestAnimationFrame(() => {
+          if (isOpen) searchInput.focus();
+        });
+        return;
+      }
       const first = popover.querySelector('[role="option"]');
       if (first) first.focus();
     }
 
     trigger.addEventListener('click', () => (isOpen ? close() : open()));
-    return { open, close, isOpen: () => isOpen };
+    // optionsHost: dónde pintar las opciones. Sin buscador es el popover mismo;
+    // con buscador, el contenedor scrolleable de abajo.
+    return { open, close, isOpen: () => isOpen, optionsHost, reposition };
   }
 
   function buildOptionRow({ selected, label, checkbox }) {
@@ -295,7 +367,11 @@
 
   // Select simple. root debe contener .ui-select-trigger > .ui-select-value
   // y .ui-select-popover. options: [{ value, label }]. value null = placeholder.
-  function createSelect(root, { options = [], placeholder = 'Seleccionar...', onChange } = {}) {
+  // searchable: umbral por defecto: con pocas opciones el buscador estorba más
+  // de lo que ayuda, así que sólo aparece cuando la lista es larga.
+  const SEARCH_THRESHOLD = 8;
+
+  function createSelect(root, { options = [], placeholder = 'Seleccionar...', onChange, searchable, searchPlaceholder = 'Buscar...' } = {}) {
     const trigger = root.querySelector('.ui-select-trigger');
     const valueEl = root.querySelector('.ui-select-value');
     const popover = root.querySelector('.ui-select-popover');
@@ -310,9 +386,18 @@
       valueEl.classList.toggle('ui-select-placeholder', !found);
     }
 
-    function renderOptions() {
-      popover.innerHTML = '';
-      opts.forEach((opt) => {
+    function renderOptions(query = '') {
+      const host = dropdown ? dropdown.optionsHost : popover;
+      host.innerHTML = '';
+      const visibles = opts.filter((opt) => matchesQuery(opt.label, query));
+      if (visibles.length === 0) {
+        const empty = document.createElement('p');
+        empty.className = 'ms-empty hint';
+        empty.textContent = 'Sin resultados.';
+        host.appendChild(empty);
+        return;
+      }
+      visibles.forEach((opt) => {
         const row = buildOptionRow({ selected: opt.value === value, label: opt.label, checkbox: false });
         row.addEventListener('click', () => {
           value = opt.value;
@@ -320,11 +405,20 @@
           dropdown.close();
           if (onChange) onChange(value);
         });
-        popover.appendChild(row);
+        host.appendChild(row);
       });
     }
 
-    const dropdown = createDropdown({ wrapper: root, trigger, popover, onOpen: renderOptions });
+    // Si no se pide explícitamente, el buscador aparece según el largo de la lista.
+    const useSearch = searchable === undefined ? options.length >= SEARCH_THRESHOLD : searchable;
+    const dropdown = createDropdown({
+      wrapper: root,
+      trigger,
+      popover,
+      onOpen: renderOptions,
+      searchable: useSearch,
+      searchPlaceholder,
+    });
 
     function setOptions(list) {
       opts = list;
@@ -346,7 +440,7 @@
   // Multiselect con chips. root debe contener .ms-trigger (div, no button: puede
   // alojar botones "quitar chip" y un button dentro de otro button es HTML
   // inválido) > .ms-chips, y .ms-popover. options: [{ id, nombre }].
-  function createMultiSelect(root, { options = [], placeholder = 'Seleccionar...', onChange } = {}) {
+  function createMultiSelect(root, { options = [], placeholder = 'Seleccionar...', onChange, emptyText = 'No hay opciones cargadas.', searchPlaceholder = 'Buscar...' } = {}) {
     const trigger = root.querySelector('.ms-trigger');
     const chipsEl = root.querySelector('.ms-chips');
     const popover = root.querySelector('.ms-popover');
@@ -387,25 +481,39 @@
       });
     }
 
-    function renderOptions() {
-      popover.innerHTML = '';
+    // query la pasa el buscador del dropdown. Al tildar/destildar se repinta
+    // conservando el texto tipeado, para poder marcar varias de una búsqueda.
+    let lastQuery = '';
+
+    function renderOptions(query = '') {
+      lastQuery = query;
+      const host = dropdown ? dropdown.optionsHost : popover;
+      host.innerHTML = '';
       if (opts.length === 0) {
         const empty = document.createElement('p');
         empty.className = 'ms-empty hint';
-        empty.textContent = 'No hay especialidades cargadas.';
-        popover.appendChild(empty);
+        empty.textContent = emptyText;
+        host.appendChild(empty);
         return;
       }
-      opts.forEach((opt) => {
+      const visibles = opts.filter((opt) => matchesQuery(opt.nombre, query));
+      if (visibles.length === 0) {
+        const empty = document.createElement('p');
+        empty.className = 'ms-empty hint';
+        empty.textContent = 'Sin resultados.';
+        host.appendChild(empty);
+        return;
+      }
+      visibles.forEach((opt) => {
         const row = buildOptionRow({ selected: selected.has(opt.id), label: opt.nombre, checkbox: true });
         row.addEventListener('click', () => {
           if (selected.has(opt.id)) selected.delete(opt.id);
           else selected.add(opt.id);
-          renderOptions();
+          renderOptions(lastQuery);
           renderChips();
           if (onChange) onChange(Array.from(selected));
         });
-        popover.appendChild(row);
+        host.appendChild(row);
       });
     }
 
@@ -417,12 +525,20 @@
       }
     });
 
-    const dropdown = createDropdown({ wrapper: root, trigger, popover, onOpen: renderOptions });
+    // Siempre con buscador: las opciones se cargan async (fetch), así que al
+    // construirlo la lista está vacía y un umbral por largo nunca daría true.
+    const dropdown = createDropdown({
+      wrapper: root,
+      trigger,
+      popover,
+      onOpen: renderOptions,
+      searchable: true,
+      searchPlaceholder,
+    });
 
     function setOptions(list) {
       opts = list;
       selected = new Set(Array.from(selected).filter((id) => opts.some((o) => o.id === id)));
-      renderOptions();
       renderChips();
     }
     function setValue(ids) {
@@ -435,6 +551,139 @@
 
     renderChips();
     return { setOptions, setValue, getValue };
+  }
+
+  /* ── Controles de tabla: buscador + orden por columna ─────────────────── */
+
+  // Monta un buscador en el toolbar y hace clickeables los <th> marcados con
+  // data-sort, y devuelve { apply, getRows }: la página le pasa los datos
+  // crudos y recibe la lista ya filtrada y ordenada para pintar.
+  //
+  //   columns: { <clave data-sort>: (item) => valor comparable }
+  //   searchFields: (item) => string | string[]  — sobre qué se busca
+  //   onChange: se llama con las filas resultantes cada vez que cambia algo
+  function createTableControls({
+    table,
+    searchInput,
+    columns = {},
+    searchFields,
+    defaultSort = null,
+    onChange,
+  }) {
+    let rows = [];
+    let query = '';
+    // { key, dir } — dir: 'asc' | 'desc'
+    let sort = defaultSort ? { ...defaultSort } : null;
+
+    const headers = table ? Array.from(table.querySelectorAll('th[data-sort]')) : [];
+
+    function textOf(item) {
+      const value = searchFields ? searchFields(item) : '';
+      return Array.isArray(value) ? value.filter(Boolean).join(' ') : String(value || '');
+    }
+
+    function isEmpty(value) {
+      return value === null || value === undefined || value === '';
+    }
+
+    // Compara dos valores presentes. Números y booleanos por resta; texto por
+    // localeCompare con numeric, para que "Sala 2" venga antes que "Sala 10".
+    function compareValues(va, vb) {
+      if (typeof va === 'number' && typeof vb === 'number') return va - vb;
+      if (typeof va === 'boolean' && typeof vb === 'boolean') return (va ? 1 : 0) - (vb ? 1 : 0);
+      return String(va).localeCompare(String(vb), 'es', { numeric: true, sensitivity: 'base' });
+    }
+
+    function computeRows() {
+      const result = rows.filter((item) => matchesQuery(textOf(item), query));
+      if (!sort || !columns[sort.key]) return result;
+      const get = columns[sort.key];
+      const factor = sort.dir === 'desc' ? -1 : 1;
+      // Sort estable (ES2019+): los empates conservan el orden que trajo el backend.
+      return result.slice().sort((a, b) => {
+        const va = get(a);
+        const vb = get(b);
+        // "Sin dato" va siempre al final, ordene asc o desc: no es un valor
+        // chico, es la ausencia de valor. Por eso queda afuera del factor.
+        if (isEmpty(va) && isEmpty(vb)) return 0;
+        if (isEmpty(va)) return 1;
+        if (isEmpty(vb)) return -1;
+        return compareValues(va, vb) * factor;
+      });
+    }
+
+    function renderHeaders() {
+      headers.forEach((th) => {
+        const key = th.dataset.sort;
+        const active = sort && sort.key === key;
+        const dir = active ? sort.dir : null;
+        th.classList.toggle('is-sorted', Boolean(active));
+        th.setAttribute('aria-sort', active ? (dir === 'asc' ? 'ascending' : 'descending') : 'none');
+        const indicator = th.querySelector('.th-sort-icon');
+        if (indicator) {
+          indicator.innerHTML = active ? (dir === 'asc' ? ICONS.sortAsc : ICONS.sortDesc) : ICONS.sort;
+        }
+      });
+    }
+
+    function emit() {
+      renderHeaders();
+      if (onChange) onChange(computeRows());
+    }
+
+    headers.forEach((th) => {
+      const key = th.dataset.sort;
+      // El <th> se envuelve en un botón para que sea operable con teclado.
+      const label = th.innerHTML;
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'th-sort';
+      btn.innerHTML = `<span class="th-sort-label">${label}</span><span class="th-sort-icon" aria-hidden="true">${ICONS.sort}</span>`;
+      th.innerHTML = '';
+      th.appendChild(btn);
+      btn.addEventListener('click', () => {
+        // Mismo header: alterna asc/desc. Otro header: arranca en asc.
+        if (sort && sort.key === key) sort = { key, dir: sort.dir === 'asc' ? 'desc' : 'asc' };
+        else sort = { key, dir: 'asc' };
+        emit();
+      });
+    });
+
+    if (searchInput) {
+      // El <span> del icono va vacío en el HTML: lo llena el JS para no repetir
+      // el SVG en cada página.
+      const iconHost = searchInput.parentElement
+        && searchInput.parentElement.querySelector('.table-search-icon');
+      if (iconHost && !iconHost.innerHTML.trim()) iconHost.innerHTML = ICONS.search;
+
+      searchInput.addEventListener('input', () => {
+        query = searchInput.value;
+        emit();
+      });
+      // Esc limpia el buscador, que es lo que espera cualquiera que tipeó de más.
+      searchInput.addEventListener('keydown', (event) => {
+        if (event.key === 'Escape' && searchInput.value) {
+          event.stopPropagation();
+          searchInput.value = '';
+          query = '';
+          emit();
+        }
+      });
+    }
+
+    renderHeaders();
+
+    return {
+      // La página llama a setRows() con lo que trajo el backend; el resultado
+      // filtrado llega por onChange.
+      setRows(list) {
+        rows = list || [];
+        emit();
+      },
+      getRows: computeRows,
+      getQuery: () => query,
+      isFiltered: () => normalize(query) !== '',
+    };
   }
 
   window.tablero = {
@@ -451,5 +700,8 @@
     createMultiSelect,
     createDropdown,
     buildOptionRow,
+    createTableControls,
+    normalize,
+    matchesQuery,
   };
 })();
