@@ -152,8 +152,10 @@ function renderTable(items) {
         </button>
       </td>
       <td>
-        <span class="cell-name">${escapeHTML(item.especialidad)}</span>
-        ${total ? `<span class="link-count">${total}</span>` : ''}
+        <div class="cell-title">
+          <span class="cell-name">${escapeHTML(item.especialidad)}</span>
+          ${total ? `<span class="link-count" title="${tituloContador(item)}">${total}</span>` : ''}
+        </div>
       </td>
       <td>${descCell}</td>
       <td>
@@ -188,6 +190,13 @@ function renderTable(items) {
 
 function contarVinculos(item) {
   return (item.profesionales || []).length + (item.practicas || []).length;
+}
+
+// "11" solo no dice de qué: el desglose va como tooltip del badge.
+function tituloContador(item) {
+  const prof = (item.profesionales || []).length;
+  const prac = (item.practicas || []).length;
+  return `${prof} ${prof === 1 ? 'profesional' : 'profesionales'} · ${prac} ${prac === 1 ? 'práctica' : 'prácticas'}`;
 }
 
 /* ── Panel de vínculos ─────────────────────────────────────────────────── */
@@ -332,7 +341,7 @@ function buildPicker(item, seccion, panel, abierta) {
   root.appendChild(trigger);
 
   const popover = document.createElement('div');
-  popover.className = 'ui-select-popover hidden';
+  popover.className = 'ui-select-popover links-popover hidden';
   popover.setAttribute('role', 'listbox');
 
   const yaVinculados = new Set((item[seccion.key] || []).map((v) => v.id));
@@ -372,6 +381,7 @@ function buildPicker(item, seccion, panel, abierta) {
     trigger,
     popover,
     onOpen: renderOpciones,
+    matchTriggerWidth: false,
   });
   // createDropdown hace portal del popover a <body>: al colapsar la fila hay
   // que cerrarlo (saca los listeners globales) y sacarlo del DOM.
@@ -403,9 +413,9 @@ function actualizarContador(item) {
   const toggle = tableBody.querySelector(`button[data-expand='${item.id}']`);
   const fila = toggle && toggle.closest('tr');
   if (!fila) return;
-  const nameCell = fila.querySelector('.cell-name');
-  if (!nameCell) return;
-  let badge = fila.querySelector('.link-count');
+  const titulo = fila.querySelector('.cell-title');
+  if (!titulo) return;
+  let badge = titulo.querySelector('.link-count');
   const total = contarVinculos(item);
   if (total === 0) {
     if (badge) badge.remove();
@@ -414,9 +424,10 @@ function actualizarContador(item) {
   if (!badge) {
     badge = document.createElement('span');
     badge.className = 'link-count';
-    nameCell.after(badge);
+    titulo.appendChild(badge);
   }
   badge.textContent = total;
+  badge.title = tituloContador(item);
 }
 
 /* ── Especialidad ──────────────────────────────────────────────────────── */

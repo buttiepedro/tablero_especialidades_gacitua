@@ -1261,7 +1261,15 @@ form + .hint {
 }
 
 .col-expand {
-  width: 34px;
+  width: 30px;
+}
+
+/* El nombre y su contador en una sola línea: sueltos en la celda, el badge
+   se iba abajo con los nombres largos. */
+.cell-title {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
 }
 
 .expand-toggle {
@@ -1295,9 +1303,9 @@ form + .hint {
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  flex: none;
   min-width: 1.25rem;
   height: 1.25rem;
-  margin-left: 0.5rem;
   padding: 0 0.375rem;
   border-radius: 999px;
   background: var(--surface-2);
@@ -1305,7 +1313,15 @@ form + .hint {
   font-family: var(--font-mono);
   font-size: 0.6875rem;
   font-weight: 500;
-  vertical-align: middle;
+  cursor: default;
+}
+
+/* El popover del "+ Vincular" no hereda el ancho del botón (ver
+   matchTriggerWidth en shared.js): necesita el suyo o corta los nombres. */
+.links-popover {
+  width: max-content;
+  min-width: 220px;
+  max-width: min(340px, calc(100vw - 2rem));
 }
 
 .links-row > td {
@@ -1383,17 +1399,26 @@ form + .hint {
 
 .chip-external {
   display: inline-flex;
-  opacity: 0.5;
+  opacity: 0;
   transition: opacity 0.15s ease;
 }
 
-.chip-link:hover .chip-external,
+.chip:hover .chip-external,
 .chip-link:focus-visible .chip-external {
-  opacity: 1;
+  opacity: 0.75;
 }
 
 @media (max-width: 700px) {
+  .links-row > td {
+    padding-right: 0;
+  }
+
+  /* sticky + ancho del viewport: el panel queda a la vista aunque la tabla
+     esté scrolleada a la derecha. */
   .links-panel {
+    position: sticky;
+    left: 0;
+    width: calc(100vw - 4.5rem);
     grid-template-columns: minmax(0, 1fr);
     gap: 1.125rem;
   }

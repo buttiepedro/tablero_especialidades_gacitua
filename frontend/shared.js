@@ -181,14 +181,25 @@
   // multiselect abierto dentro de un dialog con overflow-y:auto no quede
   // recortado por ese scroll. Se cierra al hacer scroll para no arrastrar una
   // posición vieja.
-  function createDropdown({ wrapper, trigger, popover, onOpen }) {
+  function createDropdown({ wrapper, trigger, popover, onOpen, matchTriggerWidth = true }) {
     document.body.appendChild(popover);
     let isOpen = false;
 
     function reposition() {
       const rect = trigger.getBoundingClientRect();
-      popover.style.left = `${rect.left}px`;
-      popover.style.width = `${rect.width}px`;
+      // matchTriggerWidth: true para un select que ocupa todo el ancho. Con un
+      // trigger angosto conviene false, si no el popover hereda ese ancho y
+      // recorta las opciones.
+      if (matchTriggerWidth) {
+        popover.style.width = `${rect.width}px`;
+        popover.style.left = `${rect.left}px`;
+      } else {
+        // Se ancla al trigger, pero se corre para no salirse de la ventana.
+        const ancho = popover.offsetWidth;
+        let left = rect.left;
+        if (left + ancho > window.innerWidth - 8) left = rect.right - ancho;
+        popover.style.left = `${Math.max(8, left)}px`;
+      }
       const spaceBelow = window.innerHeight - rect.bottom;
       if (spaceBelow < 260 && rect.top > spaceBelow) {
         popover.style.top = 'auto';
