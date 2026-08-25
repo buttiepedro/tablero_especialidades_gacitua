@@ -58,6 +58,7 @@ practica_especialidad = db.Table(
 class Profesional(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     nombre = db.Column(db.String(255), nullable=False)
+    sexo = db.Column(db.String(20), nullable=True)
     edad_min = db.Column(db.Integer, nullable=True)
     edad_max = db.Column(db.Integer, nullable=True)
     genero = db.Column(db.String(20), nullable=True)
@@ -160,14 +161,20 @@ def _run_migrations():
     touching existing data (unlike ensure_schema's full DROP/CREATE)."""
     with app.app_context():
         inspector = inspect(db.engine)
-        if not inspector.has_table('specialidad'):
-            return
-        columns = {col['name'] for col in inspector.get_columns('specialidad')}
-        if 'atendido_por_bot' not in columns:
-            with db.engine.begin() as conn:
-                conn.execute(text(
-                    'ALTER TABLE specialidad ADD COLUMN atendido_por_bot BOOLEAN DEFAULT TRUE NOT NULL'
-                ))
+        if inspector.has_table('specialidad'):
+            columns = {col['name'] for col in inspector.get_columns('specialidad')}
+            if 'atendido_por_bot' not in columns:
+                with db.engine.begin() as conn:
+                    conn.execute(text(
+                        'ALTER TABLE specialidad ADD COLUMN atendido_por_bot BOOLEAN DEFAULT TRUE NOT NULL'
+                    ))
+        if inspector.has_table('profesional'):
+            columns = {col['name'] for col in inspector.get_columns('profesional')}
+            if 'sexo' not in columns:
+                with db.engine.begin() as conn:
+                    conn.execute(text(
+                        'ALTER TABLE profesional ADD COLUMN sexo VARCHAR(20)'
+                    ))
 
 
 def _generate_token():
@@ -372,6 +379,7 @@ def sync_especialidades():
     return jsonify({'imported': len(cleaned)})
 
 
+SEXOS_VALIDOS = {'masculino', 'femenino'}
 GENEROS_VALIDOS = {'masculino', 'femenino'}
 PRIORIDADES_VALIDAS = {1, 2, 3}
 
@@ -389,6 +397,14 @@ def _resolve_especialidades(ids):
     if len(items) != len(set(ids)):
         return None, 'Alguna especialidad seleccionada no existe'
     return items, None
+
+
+def _validate_sexo(value):
+    if value in (None, ''):
+        return None, None
+    if value not in SEXOS_VALIDOS:
+        return None, 'Sexo inválido'
+    return value, None
 
 
 def _validate_genero(value):
@@ -439,6 +455,7 @@ def _serialize_profesional(item):
     return {
         'id': item.id,
         'nombre': item.nombre,
+        'sexo': item.sexo,
         'especialidad_ids': [e.id for e in item.especialidades],
         'especialidades': [e.nombre for e in item.especialidades],
         'edad_min': item.edad_min,
@@ -468,6 +485,9 @@ def create_profesional():
     especialidades, err = _resolve_especialidades(data.get('especialidad_ids', []))
     if err:
         return jsonify({'error': err}), 400
+    sexo, err = _validate_sexo(data.get('sexo'))
+    if err:
+        return jsonify({'error': err}), 400
     genero, err = _validate_genero(data.get('genero'))
     if err:
         return jsonify({'error': err}), 400
@@ -480,6 +500,7 @@ def create_profesional():
 
     item = Profesional(
         nombre=nombre,
+        sexo=sexo,
         especialidades=especialidades,
         edad_min=edad_min,
         edad_max=edad_max,
@@ -507,6 +528,11 @@ def update_profesional(item_id):
         if err:
             return jsonify({'error': err}), 400
         item.especialidades = especialidades
+    if 'sexo' in data:
+        sexo, err = _validate_sexo(data.get('sexo'))
+        if err:
+            return jsonify({'error': err}), 400
+        item.sexo = sexo
     if 'genero' in data:
         genero, err = _validate_genero(data.get('genero'))
         if err:

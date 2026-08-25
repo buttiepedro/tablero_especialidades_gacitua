@@ -9,6 +9,7 @@ CREATE TABLE IF NOT EXISTS specialidad (
 CREATE TABLE IF NOT EXISTS profesional (
  id SERIAL PRIMARY KEY,
  nombre VARCHAR(255) NOT NULL,
+ sexo VARCHAR(20),
  edad_min INTEGER,
  edad_max INTEGER,
  genero VARCHAR(20),

@@ -17,6 +17,17 @@ const especialidadesSelect = tablero.createMultiSelect(
   document.getElementById('profesional-especialidades-select'),
   { placeholder: 'Seleccionar especialidades' }
 );
+const sexoSelect = tablero.createSelect(
+  document.getElementById('profesional-sexo-select'),
+  {
+    placeholder: 'Sin especificar',
+    options: [
+      { value: '', label: 'Sin especificar' },
+      { value: 'masculino', label: 'Masculino' },
+      { value: 'femenino', label: 'Femenino' },
+    ],
+  }
+);
 const generoSelect = tablero.createSelect(
   document.getElementById('profesional-genero-select'),
   {
@@ -81,6 +92,7 @@ form.addEventListener('submit', async (event) => {
   const isEditing = editingId !== null;
   const payload = {
     nombre,
+    sexo: sexoSelect.getValue() || null,
     especialidad_ids: especialidadesSelect.getValue(),
     edad_min: edadMinInput.value === '' ? null : Number(edadMinInput.value),
     edad_max: edadMaxInput.value === '' ? null : Number(edadMaxInput.value),
@@ -137,11 +149,14 @@ async function loadProfesionales() {
 function renderTable(items) {
   tableBody.innerHTML = '';
   if (items.length === 0) {
-    tableBody.innerHTML = '<tr><td colspan="5"><p class="hint">Todavía no hay profesionales cargados.</p></td></tr>';
+    tableBody.innerHTML = '<tr><td colspan="6"><p class="hint">Todavía no hay profesionales cargados.</p></td></tr>';
     return;
   }
   items.forEach((item) => {
     const row = document.createElement('tr');
+    const sexoCell = item.sexo
+      ? (item.sexo === 'masculino' ? 'Masculino' : 'Femenino')
+      : '<p class="empty-value">Sin especificar</p>';
     const espCell = item.especialidades.length
       ? `<div class="chip-list">${item.especialidades.map((n) => `<span class="chip-static">${escapeHTML(n)}</span>`).join('')}</div>`
       : '<p class="empty-value">Sin especialidad</p>';
@@ -151,6 +166,7 @@ function renderTable(items) {
       : '<p class="empty-value">Sin prioridad</p>';
     row.innerHTML = `
       <td>${escapeHTML(item.nombre)}</td>
+      <td>${sexoCell}</td>
       <td>${espCell}</td>
       <td>${restrCell}</td>
       <td>${prioridadCell}</td>
@@ -195,6 +211,7 @@ function openDialog(item) {
   dialogTitle.textContent = item ? 'Editar profesional' : 'Nuevo profesional';
   submitBtn.textContent = item ? 'Guardar' : 'Crear';
   nombreInput.value = item ? item.nombre : '';
+  sexoSelect.setValue(item && item.sexo ? item.sexo : '');
   especialidadesSelect.setValue(item ? item.especialidad_ids : []);
   edadMinInput.value = item && item.edad_min != null ? item.edad_min : '';
   edadMaxInput.value = item && item.edad_max != null ? item.edad_max : '';

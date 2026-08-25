@@ -39,6 +39,7 @@
           <thead>
           <tr>
             <th>Nombre</th>
+            <th>Sexo</th>
             <th>Especialidades</th>
             <th>Restricciones</th>
             <th>
@@ -78,6 +79,16 @@
               <span class="ms-chevron" aria-hidden="true"></span>
             </div>
             <div class="ms-popover hidden" role="listbox" aria-multiselectable="true"></div>
+          </div>
+        </label>
+        <label>
+          Sexo
+          <div class="ui-select" id="profesional-sexo-select">
+            <button type="button" class="ui-select-trigger" aria-haspopup="listbox" aria-expanded="false">
+              <span class="ui-select-value"></span>
+              <span class="ui-select-chevron" aria-hidden="true"></span>
+            </button>
+            <div class="ui-select-popover hidden" role="listbox"></div>
           </div>
         </label>
         <p class="hint">Restricciones opcionales: a qué pacientes atiende este profesional. Se pueden dejar sin definir.</p>
@@ -122,6 +133,6 @@
 
   <script src="config.js"></script>
   <script src="shared.js?v=20260825b"></script>
-  <script src="profesionales.js?v=20260825b"></script>
+  <script src="profesionales.js?v=20260825c"></script>
 </body>
 </html>
