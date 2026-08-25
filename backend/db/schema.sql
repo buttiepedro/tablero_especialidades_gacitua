@@ -23,6 +23,8 @@ CREATE TABLE IF NOT EXISTS profesional_especialidad (
  FOREIGN KEY (profesional_id) REFERENCES profesional(id) ON DELETE CASCADE,
  FOREIGN KEY (especialidad_id) REFERENCES specialidad(id) ON DELETE CASCADE
 );
+CREATE INDEX IF NOT EXISTS idx_profesional_especialidad_especialidad 
+  ON profesional_especialidad(especialidad_id);
 
 CREATE TABLE IF NOT EXISTS practica (
  id SERIAL PRIMARY KEY,
@@ -39,6 +41,8 @@ CREATE TABLE IF NOT EXISTS practica_especialidad (
  FOREIGN KEY (practica_id) REFERENCES practica(id) ON DELETE CASCADE,
  FOREIGN KEY (especialidad_id) REFERENCES specialidad(id) ON DELETE CASCADE
 );
+CREATE INDEX IF NOT EXISTS idx_practica_especialidad_especialidad 
+  ON practica_especialidad(especialidad_id);
 
 CREATE TABLE IF NOT EXISTS schema_meta (
  id SERIAL PRIMARY KEY,
