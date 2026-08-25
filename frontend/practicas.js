@@ -26,11 +26,26 @@ logoutLink.addEventListener('click', () => {
   window.location.href = 'login.html';
 });
 
-document.addEventListener('DOMContentLoaded', () => {
+document.addEventListener('DOMContentLoaded', async () => {
   tablero.requireAuth();
-  loadEspecialidadesOptions();
-  loadPracticas();
+  // Se esperan las dos cargas antes de atender un ?edit=: el multiselect sólo
+  // pinta chips de opciones que ya tiene seteadas.
+  await Promise.all([loadEspecialidadesOptions(), loadPracticas()]);
+  abrirDesdeURL();
 });
+
+// Deep-link desde Especialidades: abre este panel con el dialog de edición ya
+// abierto sobre el ítem indicado.
+function abrirDesdeURL() {
+  const id = new URLSearchParams(window.location.search).get('edit');
+  if (!id) return;
+  const item = currentItems.find((i) => String(i.id) === String(id));
+  if (!item) {
+    tablero.toast('No se encontró la práctica que se quería editar.', { variant: 'warning' });
+    return;
+  }
+  openDialog(item);
+}
 
 newBtn.addEventListener('click', () => openDialog(null));
 cancelBtn.addEventListener('click', () => dialog.close());

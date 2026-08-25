@@ -213,20 +213,28 @@ def login():
     return jsonify({'token': _generate_token(), 'expires_in': 12 * 60 * 60})
 
 
+def _serialize_especialidad(item):
+    return {
+        'id': item.id,
+        'especialidad': item.nombre,
+        'descripcion': item.descripcion,
+        'atendido_por_bot': item.atendido_por_bot,
+        'profesionales': [
+            {'id': p.id, 'nombre': p.nombre}
+            for p in sorted(item.profesionales, key=lambda p: p.nombre.lower())
+        ],
+        'practicas': [
+            {'id': pr.id, 'nombre': pr.nombre}
+            for pr in sorted(item.practicas, key=lambda pr: pr.nombre.lower())
+        ],
+    }
+
+
 @app.route('/especialidades', methods=['GET'])
 @requires_auth
 def list_especialidades():
     items = Specialidad.query.order_by(Specialidad.nombre).all()
-    payload = [
-        {
-            'id': item.id,
-            'especialidad': item.nombre,
-            'descripcion': item.descripcion,
-            'atendido_por_bot': item.atendido_por_bot,
-        }
-        for item in items
-    ]
-    return jsonify(payload)
+    return jsonify([_serialize_especialidad(item) for item in items])
 
 
 @app.route('/especialidades', methods=['POST'])
@@ -245,12 +253,7 @@ def create_especialidad():
     )
     db.session.add(item)
     db.session.commit()
-    return jsonify({
-        'id': item.id,
-        'especialidad': item.nombre,
-        'descripcion': item.descripcion,
-        'atendido_por_bot': item.atendido_por_bot,
-    }), 201
+    return jsonify(_serialize_especialidad(item)), 201
 
 
 @app.route('/especialidades/<int:item_id>', methods=['DELETE'])
@@ -282,12 +285,64 @@ def update_especialidad(item_id):
     if 'atendido_por_bot' in data:
         item.atendido_por_bot = bool(data['atendido_por_bot'])
     db.session.commit()
-    return jsonify({
-        'id': item.id,
-        'especialidad': item.nombre,
-        'descripcion': item.descripcion,
-        'atendido_por_bot': item.atendido_por_bot,
-    })
+    return jsonify(_serialize_especialidad(item))
+
+
+# ── Vínculos desde el lado de la especialidad ──────────────────────────────
+# La relación ya se edita desde profesionales/prácticas (PUT con
+# especialidad_ids). Estos endpoints tocan un solo vínculo por vez para que
+# editar desde Especialidades no pise el resto de los campos del otro lado.
+
+def _link(especialidad_id, model, raw_id, id_key, rel_name):
+    especialidad = Specialidad.query.get_or_404(especialidad_id)
+    try:
+        target_id = int(raw_id)
+    except (TypeError, ValueError):
+        return jsonify({'error': f'{id_key} es obligatorio'}), 400
+    target = model.query.get(target_id)
+    if not target:
+        return jsonify({'error': 'El elemento seleccionado no existe'}), 404
+    coleccion = getattr(especialidad, rel_name)
+    if target not in coleccion:
+        coleccion.append(target)
+        db.session.commit()
+    return jsonify(_serialize_especialidad(especialidad))
+
+
+def _unlink(especialidad_id, model, target_id, rel_name):
+    especialidad = Specialidad.query.get_or_404(especialidad_id)
+    target = model.query.get_or_404(target_id)
+    coleccion = getattr(especialidad, rel_name)
+    if target in coleccion:
+        coleccion.remove(target)
+        db.session.commit()
+    return jsonify(_serialize_especialidad(especialidad))
+
+
+@app.route('/especialidades/<int:item_id>/profesionales', methods=['POST'])
+@requires_auth
+def link_profesional(item_id):
+    data = request.get_json(force=True, silent=True) or {}
+    return _link(item_id, Profesional, data.get('profesional_id'), 'profesional_id', 'profesionales')
+
+
+@app.route('/especialidades/<int:item_id>/profesionales/<int:target_id>', methods=['DELETE'])
+@requires_auth
+def unlink_profesional(item_id, target_id):
+    return _unlink(item_id, Profesional, target_id, 'profesionales')
+
+
+@app.route('/especialidades/<int:item_id>/practicas', methods=['POST'])
+@requires_auth
+def link_practica(item_id):
+    data = request.get_json(force=True, silent=True) or {}
+    return _link(item_id, Practica, data.get('practica_id'), 'practica_id', 'practicas')
+
+
+@app.route('/especialidades/<int:item_id>/practicas/<int:target_id>', methods=['DELETE'])
+@requires_auth
+def unlink_practica(item_id, target_id):
+    return _unlink(item_id, Practica, target_id, 'practicas')
 
 
 @app.route('/sync/especialidades', methods=['POST'])

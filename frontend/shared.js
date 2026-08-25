@@ -425,5 +425,7 @@
     toast,
     createSelect,
     createMultiSelect,
+    createDropdown,
+    buildOptionRow,
   };
 })();
