@@ -3,6 +3,9 @@ CREATE TABLE IF NOT EXISTS specialidad (
  nombre VARCHAR(255) UNIQUE NOT NULL,
  descripcion TEXT DEFAULT '',
  atendido_por_bot BOOLEAN DEFAULT TRUE NOT NULL,
+ edad_min INTEGER,
+ edad_max INTEGER,
+ genero VARCHAR(20),
  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 

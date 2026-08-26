@@ -9,11 +9,25 @@ const form = document.getElementById('especialidad-form');
 const nombreInput = document.getElementById('especialidad-nombre');
 const descripcionInput = document.getElementById('especialidad-descripcion');
 const botInput = document.getElementById('especialidad-bot');
+const edadMinInput = document.getElementById('especialidad-edad-min');
+const edadMaxInput = document.getElementById('especialidad-edad-max');
 const cancelBtn = document.getElementById('especialidad-cancel');
 const submitBtn = document.getElementById('especialidad-submit');
 const dialog = tablero.setupDialog(dialogOverlay);
 
-const COLUMNAS = 5;
+const generoSelect = tablero.createSelect(
+  document.getElementById('especialidad-genero-select'),
+  {
+    placeholder: 'Sin restricción',
+    options: [
+      { value: '', label: 'Sin restricción' },
+      { value: 'masculino', label: 'Masculino' },
+      { value: 'femenino', label: 'Femenino' },
+    ],
+  }
+);
+
+const COLUMNAS = 6;
 
 // Config de las dos secciones del panel de vínculos. Comparten toda la lógica:
 // sólo cambian el endpoint, la página destino y de dónde sale el catálogo.
@@ -57,6 +71,8 @@ const controls = tablero.createTableControls({
   columns: {
     especialidad: (item) => item.especialidad,
     descripcion: (item) => item.descripcion || '',
+    // Igual que en Profesionales: se ordena por edad minima, que es lo comparable.
+    restricciones: (item) => (item.edad_min != null ? item.edad_min : (item.edad_max != null ? 0 : '')),
   },
   onChange: renderTable,
 });
@@ -87,6 +103,9 @@ form.addEventListener('submit', async (event) => {
     especialidad,
     descripcion: descripcionInput.value.trim(),
     atendido_por_bot: botInput.checked,
+    edad_min: edadMinInput.value === '' ? null : Number(edadMinInput.value),
+    edad_max: edadMaxInput.value === '' ? null : Number(edadMaxInput.value),
+    genero: generoSelect.getValue() || null,
   };
   const response = await tablero.fetchWithAuth(`/especialidades/${editingId}`, {
     method: 'PUT',
@@ -168,6 +187,7 @@ function renderTable(items) {
         </div>
       </td>
       <td>${descCell}</td>
+      <td>${formatRestricciones(item)}</td>
       <td>
         <label class="switch">
           <input type="checkbox" data-bot="${item.id}" ${item.atendido_por_bot ? 'checked' : ''} />
@@ -206,6 +226,25 @@ function actualizarEstado(visibles) {
     return;
   }
   tableStatus.textContent = `${total} especialidades.`;
+}
+
+// Mismo texto que en Profesionales, para que las dos tablas se lean igual.
+function formatRestricciones(item) {
+  const parts = [];
+  if (item.edad_min != null && item.edad_max != null) {
+    parts.push(`${item.edad_min}\u2013${item.edad_max} años`);
+  } else if (item.edad_min != null) {
+    parts.push(`Desde ${item.edad_min} años`);
+  } else if (item.edad_max != null) {
+    parts.push(`Hasta ${item.edad_max} años`);
+  }
+  if (item.genero) {
+    parts.push(item.genero === 'masculino' ? 'Masculino' : 'Femenino');
+  }
+  if (parts.length === 0) {
+    return '<p class="empty-value">Sin restricciones</p>';
+  }
+  return `<p class="desc-preview">${escapeHTML(parts.join(' \u00b7 '))}</p>`;
 }
 
 function contarVinculos(item) {
@@ -471,6 +510,9 @@ function openDialog(item) {
   nombreInput.value = item.especialidad;
   descripcionInput.value = item.descripcion || '';
   botInput.checked = item.atendido_por_bot;
+  edadMinInput.value = item.edad_min != null ? item.edad_min : '';
+  edadMaxInput.value = item.edad_max != null ? item.edad_max : '';
+  generoSelect.setValue(item.genero || '');
   dialog.open();
   nombreInput.focus();
 }

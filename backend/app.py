@@ -39,6 +39,12 @@ class Specialidad(db.Model):
     nombre = db.Column(db.String(255), unique=True, nullable=False)
     descripcion = db.Column(db.Text, default='')
     atendido_por_bot = db.Column(db.Boolean, default=True, nullable=False)
+    # A que pacientes atiende la especialidad entera. Mismo contrato que en
+    # profesional (edad_min / edad_max / genero), pero un nivel mas arriba: si la
+    # especialidad ya excluye al paciente, el bot ni siquiera le busca profesionales.
+    edad_min = db.Column(db.Integer, nullable=True)
+    edad_max = db.Column(db.Integer, nullable=True)
+    genero = db.Column(db.String(20), nullable=True)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
 
@@ -171,6 +177,14 @@ def _run_migrations():
                     conn.execute(text(
                         'ALTER TABLE specialidad ADD COLUMN atendido_por_bot BOOLEAN DEFAULT TRUE NOT NULL'
                     ))
+            # Restricciones a nivel especialidad. Nullable y sin default: una especialidad
+            # ya cargada queda sin restriccion, que es el comportamiento de siempre.
+            for columna, tipo in (('edad_min', 'INTEGER'), ('edad_max', 'INTEGER'), ('genero', 'VARCHAR(20)')):
+                if columna not in columns:
+                    with db.engine.begin() as conn:
+                        conn.execute(text(
+                            'ALTER TABLE specialidad ADD COLUMN {0} {1}'.format(columna, tipo)
+                        ))
         if inspector.has_table('profesional'):
             columns = {col['name'] for col in inspector.get_columns('profesional')}
             if 'sexo' not in columns:
@@ -238,6 +252,9 @@ def _serialize_especialidad(item):
         'especialidad': item.nombre,
         'descripcion': item.descripcion,
         'atendido_por_bot': item.atendido_por_bot,
+        'edad_min': item.edad_min,
+        'edad_max': item.edad_max,
+        'genero': item.genero,
         'profesionales': [
             {'id': p.id, 'nombre': p.nombre}
             for p in sorted(item.profesionales, key=lambda p: p.nombre.lower())
@@ -297,6 +314,21 @@ def update_especialidad(item_id):
         item.descripcion = str(data['descripcion'])
     if 'atendido_por_bot' in data:
         item.atendido_por_bot = bool(data['atendido_por_bot'])
+    # Mismas validaciones que en profesionales: los helpers estan definidos mas abajo
+    # en el modulo, pero se resuelven al llamar, no al importar.
+    if 'genero' in data:
+        genero, err = _validate_genero(data.get('genero'))
+        if err:
+            return jsonify({'error': err}), 400
+        item.genero = genero
+    if 'edad_min' in data or 'edad_max' in data:
+        edad_min = data.get('edad_min', item.edad_min)
+        edad_max = data.get('edad_max', item.edad_max)
+        edad_min, edad_max, err = _validate_edad(edad_min, edad_max)
+        if err:
+            return jsonify({'error': err}), 400
+        item.edad_min = edad_min
+        item.edad_max = edad_max
     db.session.commit()
     return jsonify(_serialize_especialidad(item))
 

@@ -29,7 +29,7 @@
     <section class="card">
       <div class="toolbar">
         <p class="hint">
-          Se importan desde Gacitua con `POST /sync/especialidades`: acá se editan o se eliminan, no se crean.
+          Se importan desde Gacitua con `POST /sync/especialidades`: acá se editan (descripción, restricciones, atendido por bot) o se eliminan, no se crean.
           Lo que la clínica hace y Gacitua no agenda va cargado como práctica.
         </p>
       </div>
@@ -46,6 +46,7 @@
             <th class="col-expand"><span class="sr-only">Vínculos</span></th>
             <th data-sort="especialidad">Especialidad</th>
             <th data-sort="descripcion">Descripción</th>
+            <th data-sort="restricciones">Restricciones</th>
             <th>
               <span class="th-with-info">
                 Atendido por bot
@@ -79,6 +80,27 @@
           Descripción
           <textarea id="especialidad-descripcion" rows="4"></textarea>
         </label>
+        <p class="hint">Restricciones opcionales: a qué pacientes atiende esta especialidad. Valen para todos sus profesionales y se pueden dejar sin definir.</p>
+        <div class="field-row">
+          <label>
+            Edad mínima
+            <input type="number" id="especialidad-edad-min" min="0" max="120" placeholder="Sin mínimo" />
+          </label>
+          <label>
+            Edad máxima
+            <input type="number" id="especialidad-edad-max" min="0" max="120" placeholder="Sin máximo" />
+          </label>
+        </div>
+        <label>
+          Género
+          <div class="ui-select" id="especialidad-genero-select">
+            <button type="button" class="ui-select-trigger" aria-haspopup="listbox" aria-expanded="false">
+              <span class="ui-select-value"></span>
+              <span class="ui-select-chevron" aria-hidden="true"></span>
+            </button>
+            <div class="ui-select-popover hidden" role="listbox"></div>
+          </div>
+        </label>
         <div class="switch-row">
           <span>Atendido por bot</span>
           <label class="switch">
@@ -96,6 +118,6 @@
 
   <script src="config.js"></script>
   <script src="shared.js?v=20260825d"></script>
-  <script src="especialidades.js?v=20260825d"></script>
+  <script src="especialidades.js?v=20260826a"></script>
 </body>
 </html>
