@@ -60,11 +60,17 @@ let currentItems = [];
 const controls = tablero.createTableControls({
   table: document.querySelector('.table-wrapper table'),
   searchInput,
-  searchFields: (item) => [item.nombre, ...(item.especialidades || [])],
+  // Los días entran a la búsqueda: "martes" filtra a los que atienden ese día.
+  searchFields: (item) => [
+    item.nombre,
+    ...(item.especialidades || []),
+    ...diasDeFranjas(item.horarios).map((d) => d.largo),
+  ],
   columns: {
     nombre: (item) => item.nombre,
     sexo: (item) => item.sexo || '',
     especialidades: (item) => (item.especialidades || []).join(', '),
+    horarios: (item) => (item.horarios || []).length,
     restricciones: (item) => (item.edad_min != null ? item.edad_min : (item.edad_max != null ? 0 : '')),
   },
   onChange: renderTable,
@@ -163,7 +169,7 @@ function renderTable(items) {
     const vacio = controls.isFiltered()
       ? 'Ningún profesional coincide con la búsqueda.'
       : 'Todavía no hay profesionales importados desde Gacitua.';
-    tableBody.innerHTML = `<tr><td colspan="6"><p class="hint">${vacio}</p></td></tr>`;
+    tableBody.innerHTML = `<tr><td colspan="7"><p class="hint">${vacio}</p></td></tr>`;
     return;
   }
   items.forEach((item) => {
@@ -174,6 +180,7 @@ function renderTable(items) {
     const espCell = item.especialidades.length
       ? `<div class="chip-list">${item.especialidades.map((n) => `<span class="chip-static">${escapeHTML(n)}</span>`).join('')}</div>`
       : '<p class="empty-value">Sin especialidad</p>';
+    const horariosCell = formatHorarios(item);
     const restrCell = formatRestricciones(item);
     const prioridadCell = item.prioridad
       ? `<span class="priority-badge">${item.prioridad}</span>`
@@ -185,6 +192,7 @@ function renderTable(items) {
       <td>${escapeHTML(item.nombre)}${idCell}</td>
       <td>${sexoCell}</td>
       <td>${espCell}</td>
+      <td>${horariosCell}</td>
       <td>${restrCell}</td>
       <td>${prioridadCell}</td>
       <td>
@@ -199,6 +207,10 @@ function renderTable(items) {
   tableBody.querySelectorAll('button[data-edit]').forEach((button) => {
     const item = items.find((i) => String(i.id) === button.dataset.edit);
     button.addEventListener('click', () => openDialog(item));
+  });
+  tableBody.querySelectorAll('button[data-horarios]').forEach((button) => {
+    const item = items.find((i) => String(i.id) === button.dataset.horarios);
+    button.addEventListener('click', () => openHorarios(item));
   });
   tableBody.querySelectorAll('button[data-delete]').forEach((button) => {
     button.addEventListener('click', () => deleteProfesional(button.dataset.delete));
@@ -277,4 +289,402 @@ function escapeHTML(value = '') {
     '"': '&quot;',
     "'": '&#39;'
   })[char]);
+}
+
+/* ── Horarios de atención ───────────────────────────────────────────────────
+ * Franjas en las que atiende cada profesional. Son informativas: alimentan la
+ * respuesta del asistente cuando le preguntan por el horario de atención, pero
+ * los turnos los sigue dando Gacitua y esto no los filtra.
+ *
+ * Cada alta/edición/borrado pega contra la API al toque (no hay un "guardar"
+ * final): el dialog es una lista viva, y el backend devuelve la lista completa
+ * ya ordenada, así que no hay que reconciliar nada a mano.
+ */
+
+const DIAS = [
+  { id: 1, corto: 'Lun', largo: 'Lunes' },
+  { id: 2, corto: 'Mar', largo: 'Martes' },
+  { id: 3, corto: 'Mié', largo: 'Miércoles' },
+  { id: 4, corto: 'Jue', largo: 'Jueves' },
+  { id: 5, corto: 'Vie', largo: 'Viernes' },
+  { id: 6, corto: 'Sáb', largo: 'Sábado' },
+  { id: 7, corto: 'Dom', largo: 'Domingo' },
+];
+
+// 00:00 a 23:55 cada 5 minutos. Como 'HH:MM' con cero adelante, comparar dos
+// horas con < alcanza: el orden alfabético es el orden cronológico.
+const HORAS = (() => {
+  const lista = [];
+  for (let minutos = 0; minutos < 24 * 60; minutos += 5) {
+    const valor = `${String(Math.floor(minutos / 60)).padStart(2, '0')}:${String(minutos % 60).padStart(2, '0')}`;
+    lista.push({ value: valor, label: valor });
+  }
+  return lista;
+})();
+
+const horariosOverlay = document.getElementById('horarios-dialog');
+const horariosDialog = tablero.setupDialog(horariosOverlay);
+const horariosProfesionalEl = document.getElementById('horarios-profesional');
+const horariosListEl = document.getElementById('horarios-list');
+const horariosFooter = document.getElementById('horarios-footer');
+const franjaForm = document.getElementById('franja-form');
+const franjaFormTitle = document.getElementById('franja-form-title');
+const franjaDiasEl = document.getElementById('franja-dias');
+const franjaDiasHint = document.getElementById('franja-dias-hint');
+const franjaNotaInput = document.getElementById('franja-nota');
+const franjaErrorEl = document.getElementById('franja-error');
+const franjaSubmit = document.getElementById('franja-submit');
+const franjaAddBtn = document.getElementById('franja-add');
+
+let horariosItem = null;
+let franjas = [];
+let editandoFranjaId = null;
+const diasElegidos = new Set();
+
+// El "hasta" sólo ofrece horas posteriores al "desde": el error se vuelve
+// imposible de cometer en vez de tener que avisarlo después.
+const desdeSelect = tablero.createSelect(document.getElementById('franja-desde-select'), {
+  placeholder: 'Hora',
+  options: HORAS.slice(0, -1),
+  searchPlaceholder: 'Ej: 08:30',
+  onChange: onDesdeChange,
+});
+const hastaSelect = tablero.createSelect(document.getElementById('franja-hasta-select'), {
+  placeholder: 'Hora',
+  options: HORAS.slice(1),
+  searchPlaceholder: 'Ej: 13:00',
+  onChange: validarFranja,
+});
+const franjaEspecialidadSelect = tablero.createSelect(
+  document.getElementById('franja-especialidad-select'),
+  { placeholder: 'Todas las especialidades', options: [], searchable: false }
+);
+
+DIAS.forEach((dia) => {
+  const boton = document.createElement('button');
+  boton.type = 'button';
+  boton.className = 'day-toggle';
+  boton.dataset.dia = String(dia.id);
+  boton.textContent = dia.corto;
+  boton.setAttribute('aria-pressed', 'false');
+  boton.setAttribute('aria-label', dia.largo);
+  boton.addEventListener('click', () => toggleDia(dia.id));
+  franjaDiasEl.appendChild(boton);
+});
+
+franjaAddBtn.addEventListener('click', () => abrirFormularioFranja(null));
+document.getElementById('franja-cancel').addEventListener('click', cerrarFormularioFranja);
+document.getElementById('horarios-close').addEventListener('click', () => horariosDialog.close());
+horariosOverlay.addEventListener('dialog-dismissed', cerrarFormularioFranja);
+franjaNotaInput.addEventListener('input', validarFranja);
+franjaForm.addEventListener('submit', guardarFranja);
+
+function diasDeFranjas(lista) {
+  const ids = new Set((lista || []).map((f) => f.dia_semana));
+  return DIAS.filter((d) => ids.has(d.id));
+}
+
+// Celda de la tabla: los días cargados + cuántas franjas son.
+function formatHorarios(item) {
+  const lista = item.horarios || [];
+  const etiqueta = `Horarios de atención de ${escapeHTML(item.nombre)}`;
+  if (lista.length === 0) {
+    return `
+      <button type="button" class="horarios-cell" data-horarios="${item.id}" aria-label="${etiqueta}">
+        <span class="empty-value">Sin horarios</span>
+        <span class="horarios-cta" aria-hidden="true">Cargar</span>
+      </button>`;
+  }
+  const chips = diasDeFranjas(lista)
+    .map((d) => `<span class="day-chip">${d.corto}</span>`)
+    .join('');
+  const cuenta = lista.length === 1 ? '1 franja' : `${lista.length} franjas`;
+  return `
+    <button type="button" class="horarios-cell" data-horarios="${item.id}" aria-label="${etiqueta}">
+      ${chips}<span class="horarios-count">${cuenta}</span>
+    </button>`;
+}
+
+function openHorarios(item) {
+  if (!item) return;
+  horariosItem = item;
+  franjas = (item.horarios || []).slice();
+  horariosProfesionalEl.textContent = item.nombre;
+  // Sólo las especialidades vinculadas al profesional: es lo mismo que valida
+  // el backend, así que no se puede elegir algo que después rebote.
+  franjaEspecialidadSelect.setOptions([
+    { value: '', label: 'Todas las especialidades' },
+    ...(item.especialidad_ids || []).map((id, i) => ({
+      value: String(id),
+      label: (item.especialidades || [])[i] || `Especialidad ${id}`,
+    })),
+  ]);
+  cerrarFormularioFranja();
+  renderFranjas();
+  horariosDialog.open();
+  franjaAddBtn.focus();
+}
+
+function renderFranjas() {
+  horariosListEl.innerHTML = '';
+  if (franjas.length === 0) {
+    horariosListEl.innerHTML =
+      '<p class="horarios-empty">Todavía no tiene horarios cargados.</p>';
+    return;
+  }
+  DIAS.forEach((dia) => {
+    const delDia = franjas
+      .filter((f) => f.dia_semana === dia.id)
+      .sort((a, b) => a.hora_desde.localeCompare(b.hora_desde));
+    if (delDia.length === 0) return;
+
+    const bloque = document.createElement('div');
+    bloque.className = 'horarios-day';
+    const titulo = document.createElement('p');
+    titulo.className = 'horarios-day-label';
+    titulo.textContent = dia.largo;
+    bloque.appendChild(titulo);
+
+    delDia.forEach((franja) => {
+      const fila = document.createElement('div');
+      fila.className = 'franja-row';
+      if (franja.id === editandoFranjaId) fila.classList.add('is-editing');
+      fila.innerHTML = `
+        <div class="franja-main">
+          <div class="franja-rango-line">
+            <span class="franja-rango">${franja.hora_desde} – ${franja.hora_hasta}</span>
+            ${franja.especialidad ? `<span class="chip-static">${escapeHTML(franja.especialidad)}</span>` : ''}
+          </div>
+          ${franja.nota ? `<p class="franja-nota">${escapeHTML(franja.nota)}</p>` : ''}
+        </div>
+        <div class="franja-actions">
+          <button type="button" class="link-button" data-editar="${franja.id}">Editar</button>
+          <button type="button" class="danger" data-borrar="${franja.id}">Eliminar</button>
+        </div>
+      `;
+      bloque.appendChild(fila);
+    });
+    horariosListEl.appendChild(bloque);
+  });
+
+  horariosListEl.querySelectorAll('button[data-editar]').forEach((boton) => {
+    boton.addEventListener('click', () => {
+      abrirFormularioFranja(franjas.find((f) => String(f.id) === boton.dataset.editar));
+    });
+  });
+  horariosListEl.querySelectorAll('button[data-borrar]').forEach((boton) => {
+    boton.addEventListener('click', () => borrarFranja(boton.dataset.borrar));
+  });
+}
+
+function abrirFormularioFranja(franja) {
+  editandoFranjaId = franja ? franja.id : null;
+  diasElegidos.clear();
+
+  if (franja) {
+    // Editar toca una franja concreta: un solo día, para no convertir sin querer
+    // una edición en un alta múltiple.
+    diasElegidos.add(franja.dia_semana);
+    franjaFormTitle.textContent = 'Editar franja';
+    franjaDiasHint.textContent = 'Al editar se mueve una sola franja: elegí un día.';
+    desdeSelect.setValue(franja.hora_desde);
+    sincronizarHasta(franja.hora_hasta);
+    franjaEspecialidadSelect.setValue(franja.especialidad_id ? String(franja.especialidad_id) : '');
+    franjaNotaInput.value = franja.nota || '';
+  } else {
+    franjaFormTitle.textContent = 'Nueva franja';
+    franjaDiasHint.textContent = 'Podés marcar varios: se crea la misma franja en cada día.';
+    desdeSelect.setValue('08:00');
+    sincronizarHasta('13:00');
+    franjaEspecialidadSelect.setValue('');
+    franjaNotaInput.value = '';
+  }
+
+  franjaForm.classList.remove('hidden');
+  horariosFooter.classList.add('hidden');
+  renderDias();
+  renderFranjas();
+  validarFranja();
+  const primero = franjaDiasEl.querySelector('.day-toggle');
+  if (primero) primero.focus();
+}
+
+function cerrarFormularioFranja() {
+  editandoFranjaId = null;
+  diasElegidos.clear();
+  franjaForm.classList.add('hidden');
+  horariosFooter.classList.remove('hidden');
+  franjaErrorEl.classList.add('hidden');
+  renderFranjas();
+}
+
+function toggleDia(id) {
+  if (editandoFranjaId !== null) {
+    // En edición el grupo se comporta como un radio: siempre queda uno elegido.
+    diasElegidos.clear();
+    diasElegidos.add(id);
+  } else if (diasElegidos.has(id)) {
+    diasElegidos.delete(id);
+  } else {
+    diasElegidos.add(id);
+  }
+  renderDias();
+  validarFranja();
+}
+
+function renderDias(conflictivos = new Set()) {
+  franjaDiasEl.querySelectorAll('.day-toggle').forEach((boton) => {
+    const id = Number(boton.dataset.dia);
+    boton.setAttribute('aria-pressed', String(diasElegidos.has(id)));
+    boton.classList.toggle('is-conflict', conflictivos.has(id));
+  });
+}
+
+// Al mover el "desde" se recalculan las opciones del "hasta" y, si quedó en una
+// hora que ya no existe, se lo empuja una hora más adelante.
+function onDesdeChange() {
+  sincronizarHasta(hastaSelect.getValue());
+  validarFranja();
+}
+
+function sincronizarHasta(preferida) {
+  const desde = desdeSelect.getValue() || '00:00';
+  const posibles = HORAS.filter((h) => h.value > desde);
+  hastaSelect.setOptions(posibles);
+  const sirve = preferida && posibles.some((h) => h.value === preferida);
+  if (sirve) {
+    hastaSelect.setValue(preferida);
+    return;
+  }
+  const [hh, mm] = desde.split(':').map(Number);
+  const unaHoraDespues = `${String(Math.min(23, hh + 1)).padStart(2, '0')}:${String(mm).padStart(2, '0')}`;
+  const elegida = posibles.find((h) => h.value === unaHoraDespues) || posibles[posibles.length - 1];
+  hastaSelect.setValue(elegida ? elegida.value : null);
+}
+
+// Mismo criterio que el backend: intervalos [desde, hasta), así dos franjas
+// contiguas (7–13 y 13–15) no cuentan como pisadas. El choque se busca contra
+// TODAS las franjas del profesional: no puede estar en dos lados a la vez,
+// aunque sean especialidades distintas.
+function conflictosDe(dias, desde, hasta) {
+  return franjas.filter(
+    (f) =>
+      f.id !== editandoFranjaId &&
+      dias.has(f.dia_semana) &&
+      desde < f.hora_hasta &&
+      f.hora_desde < hasta
+  );
+}
+
+function validarFranja() {
+  const desde = desdeSelect.getValue();
+  const hasta = hastaSelect.getValue();
+
+  if (diasElegidos.size === 0) {
+    return mostrarEstadoFranja('Elegí al menos un día.', new Set(), true);
+  }
+  if (!desde || !hasta || hasta <= desde) {
+    return mostrarEstadoFranja('La hora de fin tiene que ser posterior a la de inicio.', new Set(), true);
+  }
+
+  const choques = conflictosDe(diasElegidos, desde, hasta);
+  if (choques.length > 0) {
+    const detalle = choques
+      .map((f) => {
+        const dia = DIAS.find((d) => d.id === f.dia_semana);
+        return `${dia ? dia.largo : ''} de ${f.hora_desde} a ${f.hora_hasta}`;
+      })
+      .join(', ');
+    return mostrarEstadoFranja(
+      `Se superpone con ${detalle}. Cambiá el horario o sacá ese día.`,
+      new Set(choques.map((f) => f.dia_semana)),
+      true
+    );
+  }
+  return mostrarEstadoFranja('', new Set(), false);
+}
+
+function mostrarEstadoFranja(mensaje, conflictivos, bloqueado) {
+  franjaErrorEl.textContent = mensaje;
+  franjaErrorEl.classList.toggle('hidden', !mensaje);
+  renderDias(conflictivos);
+  franjaSubmit.disabled = bloqueado;
+  franjaSubmit.textContent = editandoFranjaId !== null
+    ? 'Guardar cambios'
+    : (diasElegidos.size > 1 ? `Agregar ${diasElegidos.size} franjas` : 'Agregar franja');
+  return !bloqueado;
+}
+
+async function guardarFranja(event) {
+  event.preventDefault();
+  if (!validarFranja() || !horariosItem) return;
+
+  const especialidad = franjaEspecialidadSelect.getValue();
+  const payload = {
+    hora_desde: desdeSelect.getValue(),
+    hora_hasta: hastaSelect.getValue(),
+    especialidad_id: especialidad ? Number(especialidad) : null,
+    nota: franjaNotaInput.value.trim(),
+  };
+
+  const editando = editandoFranjaId !== null;
+  if (editando) payload.dia_semana = Array.from(diasElegidos)[0];
+  else payload.dias = Array.from(diasElegidos);
+
+  const cantidad = diasElegidos.size;
+  franjaSubmit.disabled = true;
+  const response = await tablero.fetchWithAuth(
+    editando ? `/horarios/${editandoFranjaId}` : `/profesionales/${horariosItem.id}/horarios`,
+    { method: editando ? 'PUT' : 'POST', body: JSON.stringify(payload) }
+  );
+
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({}));
+    franjaSubmit.disabled = false;
+    // El 409 del backend es el mismo choque que valida el front: puede llegar si
+    // otra pestaña cargó una franja mientras este formulario estaba abierto.
+    franjaErrorEl.textContent = error.error || 'No se pudo guardar la franja.';
+    franjaErrorEl.classList.remove('hidden');
+    return;
+  }
+
+  aplicarFranjas(await response.json());
+  cerrarFormularioFranja();
+  tablero.toast(
+    editando ? 'Franja actualizada' : (cantidad > 1 ? `${cantidad} franjas agregadas` : 'Franja agregada'),
+    { description: horariosItem.nombre }
+  );
+}
+
+async function borrarFranja(id) {
+  const franja = franjas.find((f) => String(f.id) === String(id));
+  if (!franja) return;
+  const dia = DIAS.find((d) => d.id === franja.dia_semana);
+  const confirmado = await tablero.confirm({
+    title: 'Eliminar franja',
+    message: `Se va a eliminar ${dia ? dia.largo : ''} de ${franja.hora_desde} a ${franja.hora_hasta}. Esta acción no se puede deshacer.`,
+    confirmLabel: 'Eliminar',
+    tone: 'danger',
+  });
+  // El confirm libera el scroll del body al cerrarse, pero este dialog sigue
+  // abierto: hay que volver a bloquearlo o el fondo scrollea por detrás.
+  document.body.style.overflow = 'hidden';
+  if (!confirmado) return;
+
+  const response = await tablero.fetchWithAuth(`/horarios/${id}`, { method: 'DELETE' });
+  if (!response.ok) {
+    tablero.toast('No se pudo eliminar la franja.', { variant: 'error' });
+    return;
+  }
+  if (editandoFranjaId === franja.id) cerrarFormularioFranja();
+  aplicarFranjas(franjas.filter((f) => f.id !== franja.id));
+  tablero.toast('Franja eliminada', { description: horariosItem ? horariosItem.nombre : '' });
+}
+
+// Deja la lista del dialog y la de la tabla mirando lo mismo, sin recargar todo.
+function aplicarFranjas(lista) {
+  franjas = lista;
+  if (horariosItem) horariosItem.horarios = lista;
+  renderFranjas();
+  controls.setRows(currentItems);
 }

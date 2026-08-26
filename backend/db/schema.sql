@@ -31,6 +31,21 @@ CREATE TABLE IF NOT EXISTS profesional_especialidad (
 CREATE INDEX IF NOT EXISTS idx_profesional_especialidad_especialidad 
   ON profesional_especialidad(especialidad_id);
 
+CREATE TABLE IF NOT EXISTS horario_profesional (
+ id SERIAL PRIMARY KEY,
+ profesional_id INTEGER NOT NULL,
+ especialidad_id INTEGER,
+ dia_semana INTEGER NOT NULL,
+ hora_desde VARCHAR(5) NOT NULL,
+ hora_hasta VARCHAR(5) NOT NULL,
+ nota VARCHAR(255) DEFAULT '',
+ updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+ FOREIGN KEY (profesional_id) REFERENCES profesional(id) ON DELETE CASCADE,
+ FOREIGN KEY (especialidad_id) REFERENCES specialidad(id) ON DELETE SET NULL
+);
+CREATE INDEX IF NOT EXISTS idx_horario_profesional_profesional
+  ON horario_profesional(profesional_id);
+
 CREATE TABLE IF NOT EXISTS practica (
  id SERIAL PRIMARY KEY,
  nombre VARCHAR(255) NOT NULL,

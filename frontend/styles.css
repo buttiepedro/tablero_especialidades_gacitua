@@ -191,6 +191,21 @@ button:focus-visible {
   box-shadow: 0 0 0 4px var(--accent-ring);
 }
 
+/* No había estado deshabilitado en el sistema y el submit de una franja con
+   conflicto lo necesita: sin esto se ve idéntico a uno clickeable. */
+button:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+button:disabled:hover {
+  background: var(--accent);
+}
+
+.secondary:disabled:hover {
+  background: var(--surface-2);
+}
+
 .secondary {
   background: var(--surface-2);
   color: var(--text);
@@ -1346,7 +1361,7 @@ form + .hint {
   }
 
   table {
-    min-width: 560px;
+    min-width: 680px;
   }
 
   /* Dentro del scroll container el tooltip se recortaría: lo anclamos hacia adentro. */
@@ -1595,5 +1610,331 @@ form + .hint {
     width: calc(100vw - 4.5rem);
     grid-template-columns: minmax(0, 1fr);
     gap: 1.125rem;
+  }
+}
+
+/* ── Horarios de atención ──────────────────────────────────────────────── */
+
+/* Celda de la tabla: los días cargados de un vistazo, para no tener que abrir
+   cada profesional sólo para ver si tiene agenda. Toda la celda abre el dialog. */
+.horarios-cell {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.375rem;
+  width: 100%;
+  padding: 0.25rem;
+  margin: -0.25rem;
+  background: transparent;
+  border: none;
+  border-radius: 10px;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.horarios-cell:hover {
+  background: var(--surface-2);
+}
+
+.horarios-cell:focus-visible {
+  outline: 2px solid var(--accent-ring);
+  outline-offset: 1px;
+}
+
+.day-chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.2rem 0.5rem;
+  border-radius: 8px;
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-family: var(--font-mono);
+  font-size: 0.6875rem;
+  font-weight: 500;
+}
+
+.horarios-count {
+  color: var(--faint);
+  font-size: 0.75rem;
+  white-space: nowrap;
+}
+
+/* Se muestra al pasar por encima de una celda vacía: dice qué hacer sin
+   ocupar lugar en las filas que ya tienen horarios. */
+.horarios-cta {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.2rem 0.6rem;
+  border-radius: 999px;
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-size: 0.6875rem;
+  font-weight: 600;
+  opacity: 0;
+  transition: opacity 0.15s ease;
+}
+
+.horarios-cell:hover .horarios-cta,
+.horarios-cell:focus-visible .horarios-cta {
+  opacity: 1;
+}
+
+/* ── Dialog ── */
+.dialog-horarios {
+  max-width: 560px;
+}
+
+.dialog-horarios h2 {
+  margin-bottom: 0.25rem;
+}
+
+.dialog-subject {
+  margin: 0 0 0.75rem;
+  font-weight: 700;
+  font-size: 0.9375rem;
+  color: var(--text);
+}
+
+.horarios-list {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  margin: 1.25rem 0;
+}
+
+.horarios-day {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.horarios-day-label {
+  font-family: var(--font-mono);
+  font-size: 0.6875rem;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--faint);
+}
+
+.franja-row {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.625rem 0.875rem;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: var(--surface-2);
+}
+
+/* La franja que se está editando se marca para no perderla de vista cuando el
+   formulario de abajo cambia de valores. */
+.franja-row.is-editing {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+
+.franja-main {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  min-width: 0;
+  flex: 1;
+}
+
+.franja-rango-line {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.franja-rango {
+  font-family: var(--font-mono);
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: var(--text);
+  white-space: nowrap;
+}
+
+.franja-nota {
+  margin: 0;
+  font-size: 0.8125rem;
+  color: var(--muted);
+  overflow-wrap: anywhere;
+}
+
+.franja-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
+  flex: none;
+}
+
+.franja-actions .link-button,
+.franja-actions .danger {
+  padding: 0.3rem 0.7rem;
+  font-size: 0.75rem;
+  border-radius: 999px;
+}
+
+.horarios-empty {
+  margin: 0;
+  padding: 1.25rem;
+  border: 1px dashed var(--border-strong);
+  border-radius: 14px;
+  text-align: center;
+  color: var(--faint);
+  font-size: 0.875rem;
+}
+
+/* ── Formulario de una franja ── */
+/* Va embebido en el dialog y no como un segundo dialog encima: anidar overlays
+   rompe el cierre con Escape (lo escucha document, cierra los dos). */
+.franja-form {
+  display: flex;
+  flex-direction: column;
+  gap: 1.125rem;
+  padding: 1.25rem;
+  margin-bottom: 1.25rem;
+  border: 1px solid var(--border);
+  border-radius: 18px;
+  background: var(--surface-2);
+  animation: dialog-in 0.16s ease-out;
+}
+
+.franja-form.hidden {
+  display: none;
+}
+
+.franja-form-title {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: 1rem;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+
+.franja-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.franja-label {
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--text);
+}
+
+/* El <label> del sistema es flex-column: sin esto, el "opcional" se va a su
+   propio renglon en vez de quedar al lado del nombre del campo. */
+.label-inline {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0.375rem;
+}
+
+.label-optional {
+  font-weight: 500;
+  font-size: 0.75rem;
+  color: var(--faint);
+}
+
+.franja-form .hint {
+  margin: 0;
+}
+
+.day-picker {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.375rem;
+}
+
+.day-toggle {
+  padding: 0.4rem 0.7rem;
+  border: 1px solid var(--border-strong);
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--muted);
+  font-size: 0.8125rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+}
+
+.day-toggle:hover {
+  border-color: var(--accent);
+  color: var(--text);
+}
+
+.day-toggle[aria-pressed='true'] {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--accent-fg);
+}
+
+/* Día cuyo horario choca con una franja ya cargada: se marca el día puntual,
+   no el formulario entero, para que se vea cuál sacar. */
+.day-toggle.is-conflict[aria-pressed='true'] {
+  background: var(--danger);
+  border-color: var(--danger);
+  color: #ffffff;
+}
+
+.day-toggle:focus-visible {
+  outline: 2px solid var(--accent-ring);
+  outline-offset: 2px;
+}
+
+.franja-error {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+  margin: 0;
+  padding: 0.625rem 0.75rem;
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--danger) 10%, transparent);
+  color: var(--danger);
+  font-size: 0.8125rem;
+  font-weight: 500;
+}
+
+.franja-error.hidden {
+  display: none;
+}
+
+.horarios-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-top: 0.25rem;
+}
+
+.horarios-footer .link-button {
+  padding: 0.55rem 1rem;
+  font-size: 0.8125rem;
+}
+
+@media (max-width: 560px) {
+  .franja-row {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .franja-actions {
+    justify-content: flex-end;
+  }
+
+  .horarios-footer {
+    flex-direction: column-reverse;
+    align-items: stretch;
+  }
+
+  .horarios-footer button {
+    width: 100%;
   }
 }

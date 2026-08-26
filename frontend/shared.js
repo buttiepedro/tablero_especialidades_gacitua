@@ -285,6 +285,10 @@
 
     function handleKey(event) {
       if (event.key === 'Escape') {
+        // Este listener va en capture sobre document y el de setupDialog en bubble:
+        // sin cortar acá, un Escape para cerrar el desplegable cerraba tambien el
+        // dialog que lo contiene y se perdia lo cargado en el formulario.
+        event.stopPropagation();
         close();
         trigger.focus();
         return;

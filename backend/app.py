@@ -85,6 +85,36 @@ class Practica(db.Model):
     especialidades = db.relationship('Specialidad', secondary=practica_especialidad, backref='practicas')
 
 
+class HorarioProfesional(db.Model):
+    """Franja de atencion de un profesional. Es informativa: alimenta la respuesta del bot
+    cuando le preguntan "en que horario atiende X", pero NO filtra los turnos, que siguen
+    saliendo de la API de Gacitua."""
+    __tablename__ = 'horario_profesional'
+    id = db.Column(db.Integer, primary_key=True)
+    profesional_id = db.Column(
+        db.Integer, db.ForeignKey('profesional.id', ondelete='CASCADE'), nullable=False
+    )
+    # Opcional: una franja sin especialidad vale para todo lo que el profesional atienda.
+    # SET NULL y no CASCADE: si se borra la especialidad, la franja sigue siendo un horario
+    # valido, solo deja de estar acotada.
+    especialidad_id = db.Column(
+        db.Integer, db.ForeignKey('specialidad.id', ondelete='SET NULL'), nullable=True
+    )
+    dia_semana = db.Column(db.Integer, nullable=False)  # 1 = lunes ... 7 = domingo
+    # 'HH:MM' 24h. Como texto zero-padded ordena y compara igual que el numero, y es lo
+    # que consume directo el front y el bot sin conversiones.
+    hora_desde = db.Column(db.String(5), nullable=False)
+    hora_hasta = db.Column(db.String(5), nullable=False)
+    nota = db.Column(db.String(255), default='')
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    profesional = db.relationship(
+        'Profesional',
+        backref=db.backref('horarios', cascade='all, delete-orphan', lazy='select'),
+    )
+    especialidad = db.relationship('Specialidad')
+
+
 class SchemaMeta(db.Model):
     __tablename__ = 'schema_meta'
     id = db.Column(db.Integer, primary_key=True)
@@ -582,6 +612,130 @@ def _validate_edad(edad_min, edad_max):
     return edad_min, edad_max, None
 
 
+DIAS_SEMANA = {
+    1: 'Lunes', 2: 'Martes', 3: 'Miércoles', 4: 'Jueves',
+    5: 'Viernes', 6: 'Sábado', 7: 'Domingo',
+}
+
+
+def _validate_hora(value, campo):
+    """'HH:MM' 24h en pasos de 5 minutos. Devuelve (valor, error)."""
+    texto = str(value or '').strip()
+    if not texto:
+        return None, f'{campo} es obligatoria'
+    partes = texto.split(':')
+    if len(partes) != 2:
+        return None, f'{campo} tiene que estar en formato HH:MM'
+    try:
+        horas, minutos = int(partes[0]), int(partes[1])
+    except (TypeError, ValueError):
+        return None, f'{campo} tiene que estar en formato HH:MM'
+    if not (0 <= horas <= 23) or not (0 <= minutos <= 59):
+        return None, f'{campo} tiene que estar entre 00:00 y 23:55'
+    if minutos % 5 != 0:
+        return None, f'{campo} tiene que caer en un múltiplo de 5 minutos'
+    return '{0:02d}:{1:02d}'.format(horas, minutos), None
+
+
+def _validate_rango(hora_desde, hora_hasta):
+    desde, err = _validate_hora(hora_desde, 'La hora de inicio')
+    if err:
+        return None, None, err
+    hasta, err = _validate_hora(hora_hasta, 'La hora de fin')
+    if err:
+        return None, None, err
+    # Sin cruce de medianoche: una guardia nocturna se carga como dos franjas.
+    if hasta <= desde:
+        return None, None, 'La hora de fin tiene que ser posterior a la de inicio'
+    return desde, hasta, None
+
+
+def _validate_dias(data):
+    """Acepta 'dias': [1,3,5] (alta multiple) o 'dia_semana': 3 (edicion)."""
+    crudos = data.get('dias')
+    if crudos is None:
+        crudos = [data.get('dia_semana')] if 'dia_semana' in data else None
+    if not isinstance(crudos, list) or not crudos:
+        return None, 'Hay que elegir al menos un día'
+    dias = []
+    for crudo in crudos:
+        try:
+            dia = int(crudo)
+        except (TypeError, ValueError):
+            return None, 'Día inválido'
+        if dia not in DIAS_SEMANA:
+            return None, 'Día inválido'
+        if dia not in dias:
+            dias.append(dia)
+    return sorted(dias), None
+
+
+def _resolve_especialidad_de_franja(profesional, raw_id):
+    """None = 'Todas'. Si viene un id, tiene que ser una de las especialidades que el
+    profesional tiene vinculadas: es lo que ofrece el desplegable del tablero."""
+    if raw_id in (None, '', 'null'):
+        return None, None
+    try:
+        especialidad_id = int(raw_id)
+    except (TypeError, ValueError):
+        return None, 'Especialidad inválida'
+    especialidad = next((e for e in profesional.especialidades if e.id == especialidad_id), None)
+    if not especialidad:
+        return None, 'La especialidad elegida no está vinculada a este profesional'
+    return especialidad, None
+
+
+def _se_solapan(desde_a, hasta_a, desde_b, hasta_b):
+    """Intervalos [desde, hasta): dos franjas contiguas (7-13 y 13-15) NO se pisan."""
+    return desde_a < hasta_b and desde_b < hasta_a
+
+
+def _describir_franja(franja):
+    return '{0} de {1} a {2}'.format(
+        DIAS_SEMANA.get(franja.dia_semana, ''), franja.hora_desde, franja.hora_hasta
+    )
+
+
+def _buscar_conflictos(profesional, dias, desde, hasta, excluir_id=None):
+    """Un profesional no puede estar en dos lugares a la vez: el choque se busca contra
+    TODAS sus franjas, sin importar de que especialidad sea cada una."""
+    conflictos = []
+    for franja in profesional.horarios:
+        if excluir_id is not None and franja.id == excluir_id:
+            continue
+        if franja.dia_semana not in dias:
+            continue
+        if _se_solapan(desde, hasta, franja.hora_desde, franja.hora_hasta):
+            conflictos.append(franja)
+    return conflictos
+
+
+def _error_conflictos(conflictos):
+    detalle = ', '.join(_describir_franja(f) for f in conflictos)
+    return jsonify({
+        'error': 'Se superpone con {0}'.format(detalle),
+        'conflictos': [_serialize_horario(f) for f in conflictos],
+    }), 409
+
+
+def _serialize_horario(item):
+    return {
+        'id': item.id,
+        'profesional_id': item.profesional_id,
+        'dia_semana': item.dia_semana,
+        'dia_nombre': DIAS_SEMANA.get(item.dia_semana, ''),
+        'hora_desde': item.hora_desde,
+        'hora_hasta': item.hora_hasta,
+        'especialidad_id': item.especialidad_id,
+        'especialidad': item.especialidad.nombre if item.especialidad else None,
+        'nota': item.nota or '',
+    }
+
+
+def _horarios_ordenados(profesional):
+    return sorted(profesional.horarios, key=lambda h: (h.dia_semana, h.hora_desde, h.hora_hasta))
+
+
 def _serialize_profesional(item):
     return {
         'id': item.id,
@@ -594,6 +748,7 @@ def _serialize_profesional(item):
         'edad_max': item.edad_max,
         'genero': item.genero,
         'prioridad': item.prioridad,
+        'horarios': [_serialize_horario(h) for h in _horarios_ordenados(item)],
     }
 
 
@@ -633,6 +788,12 @@ def update_profesional(item_id):
         if err:
             return jsonify({'error': err}), 400
         item.especialidades = especialidades
+        # Una franja no puede quedar atada a una especialidad que el profesional ya no
+        # tiene vinculada: pasa a valer para todas.
+        vigentes = {e.id for e in especialidades}
+        for franja in item.horarios:
+            if franja.especialidad_id is not None and franja.especialidad_id not in vigentes:
+                franja.especialidad_id = None
     if 'sexo' in data:
         sexo, err = _validate_sexo(data.get('sexo'))
         if err:
@@ -666,6 +827,109 @@ def update_profesional(item_id):
 def delete_profesional(item_id):
     item = Profesional.query.get_or_404(item_id)
     db.session.delete(item)
+    db.session.commit()
+    return '', 204
+
+
+# ── Horarios de atencion de un profesional ─────────────────────────────────
+# Son informativos: le sirven al bot para contestar "en que horario atiende X". Los
+# turnos siguen saliendo de Gacitua, el tablero no los filtra.
+
+@app.route('/profesionales/<int:item_id>/horarios', methods=['GET'])
+@requires_auth
+def list_horarios(item_id):
+    profesional = Profesional.query.get_or_404(item_id)
+    return jsonify([_serialize_horario(h) for h in _horarios_ordenados(profesional)])
+
+
+@app.route('/profesionales/<int:item_id>/horarios', methods=['POST'])
+@requires_auth
+def create_horarios(item_id):
+    """Alta multiple: un mismo rango puede crearse en varios dias de una. O se crean
+    todas o no se crea ninguna, para que un choque en el jueves no deje a medias el
+    lunes y el martes."""
+    profesional = Profesional.query.get_or_404(item_id)
+    data = request.get_json(force=True, silent=True) or {}
+
+    dias, err = _validate_dias(data)
+    if err:
+        return jsonify({'error': err}), 400
+    desde, hasta, err = _validate_rango(data.get('hora_desde'), data.get('hora_hasta'))
+    if err:
+        return jsonify({'error': err}), 400
+    especialidad, err = _resolve_especialidad_de_franja(profesional, data.get('especialidad_id'))
+    if err:
+        return jsonify({'error': err}), 400
+
+    conflictos = _buscar_conflictos(profesional, dias, desde, hasta)
+    if conflictos:
+        return _error_conflictos(conflictos)
+
+    nota = str(data.get('nota', '') or '').strip()[:255]
+    for dia in dias:
+        db.session.add(HorarioProfesional(
+            profesional_id=profesional.id,
+            especialidad_id=especialidad.id if especialidad else None,
+            dia_semana=dia,
+            hora_desde=desde,
+            hora_hasta=hasta,
+            nota=nota,
+        ))
+    db.session.commit()
+    return jsonify([_serialize_horario(h) for h in _horarios_ordenados(profesional)]), 201
+
+
+@app.route('/horarios/<int:horario_id>', methods=['PUT'])
+@requires_auth
+def update_horario(horario_id):
+    franja = HorarioProfesional.query.get_or_404(horario_id)
+    profesional = franja.profesional
+    data = request.get_json(force=True, silent=True) or {}
+
+    dia = franja.dia_semana
+    if 'dia_semana' in data or 'dias' in data:
+        dias, err = _validate_dias(data)
+        if err:
+            return jsonify({'error': err}), 400
+        if len(dias) != 1:
+            return jsonify({'error': 'Al editar una franja se elige un solo día'}), 400
+        dia = dias[0]
+
+    desde, hasta = franja.hora_desde, franja.hora_hasta
+    if 'hora_desde' in data or 'hora_hasta' in data:
+        desde, hasta, err = _validate_rango(
+            data.get('hora_desde', franja.hora_desde),
+            data.get('hora_hasta', franja.hora_hasta),
+        )
+        if err:
+            return jsonify({'error': err}), 400
+
+    especialidad_id = franja.especialidad_id
+    if 'especialidad_id' in data:
+        especialidad, err = _resolve_especialidad_de_franja(profesional, data.get('especialidad_id'))
+        if err:
+            return jsonify({'error': err}), 400
+        especialidad_id = especialidad.id if especialidad else None
+
+    conflictos = _buscar_conflictos(profesional, [dia], desde, hasta, excluir_id=franja.id)
+    if conflictos:
+        return _error_conflictos(conflictos)
+
+    franja.dia_semana = dia
+    franja.hora_desde = desde
+    franja.hora_hasta = hasta
+    franja.especialidad_id = especialidad_id
+    if 'nota' in data:
+        franja.nota = str(data.get('nota', '') or '').strip()[:255]
+    db.session.commit()
+    return jsonify([_serialize_horario(h) for h in _horarios_ordenados(profesional)])
+
+
+@app.route('/horarios/<int:horario_id>', methods=['DELETE'])
+@requires_auth
+def delete_horario(horario_id):
+    franja = HorarioProfesional.query.get_or_404(horario_id)
+    db.session.delete(franja)
     db.session.commit()
     return '', 204
 
