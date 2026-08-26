@@ -7,7 +7,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400;12..96,600;12..96,700;12..96,800&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="styles.css?v=20260826a" />
+  <link rel="stylesheet" href="styles.css?v=20260826c" />
 </head>
 <body>
   <main>
@@ -97,6 +97,14 @@
             <div class="ms-popover hidden" role="listbox" aria-multiselectable="true"></div>
           </div>
         </label>
+        <div class="franja-field">
+          <span class="franja-label" id="profesional-horarios-label">Horarios de atención</span>
+          <button type="button" class="horarios-trigger" id="profesional-horarios"
+                  aria-labelledby="profesional-horarios-label">
+            <span class="horarios-trigger-resumen" id="profesional-horarios-resumen"></span>
+            <span class="horarios-trigger-cta" aria-hidden="true">Gestionar</span>
+          </button>
+        </div>
         <label>
           Sexo
           <div class="ui-select" id="profesional-sexo-select">
@@ -223,6 +231,6 @@
 
   <script src="config.js"></script>
   <script src="shared.js?v=20260826a"></script>
-  <script src="profesionales.js?v=20260826a"></script>
+  <script src="profesionales.js?v=20260826c"></script>
 </body>
 </html>

@@ -53,6 +53,9 @@ const prioridadSelect = tablero.createSelect(
 );
 
 let editingId = null;
+// El item completo, no solo el id: el acceso a los horarios desde el dialog de edición
+// necesita sus franjas y sus especialidades.
+let editingItem = null;
 let currentItems = [];
 
 // Sin orden elegido se respeta el que trae el backend (prioridad asc, nulls al
@@ -246,6 +249,7 @@ function formatRestricciones(item) {
 function openDialog(item) {
   if (!item) return;
   editingId = item.id;
+  editingItem = item;
   dialogTitle.textContent = 'Editar profesional';
   submitBtn.textContent = 'Guardar';
   nombreInput.value = item ? item.nombre : '';
@@ -255,6 +259,7 @@ function openDialog(item) {
   edadMaxInput.value = item && item.edad_max != null ? item.edad_max : '';
   generoSelect.setValue(item && item.genero ? item.genero : '');
   prioridadSelect.setValue(item && item.prioridad ? String(item.prioridad) : '');
+  renderResumenHorarios();
   dialog.open();
   nombreInput.focus();
 }
@@ -374,10 +379,52 @@ DIAS.forEach((dia) => {
 
 franjaAddBtn.addEventListener('click', () => abrirFormularioFranja(null));
 document.getElementById('franja-cancel').addEventListener('click', cerrarFormularioFranja);
-document.getElementById('horarios-close').addEventListener('click', () => horariosDialog.close());
-horariosOverlay.addEventListener('dialog-dismissed', cerrarFormularioFranja);
+document.getElementById('horarios-close').addEventListener('click', cerrarHorarios);
+// dialog-dismissed lo dispara setupDialog al cerrar por Escape o por el fondo: mismo camino
+// que el botón Cerrar, si no volver al dialog de edición dependería de cómo lo cerraste.
+horariosOverlay.addEventListener('dialog-dismissed', cerrarHorarios);
 franjaNotaInput.addEventListener('input', validarFranja);
 franjaForm.addEventListener('submit', guardarFranja);
+
+/* ── Acceso a los horarios desde el dialog de "Editar profesional" ──────────
+ * El dialog de edición se esconde y el de horarios ocupa su lugar; al cerrar
+ * este último se vuelve al de edición TAL COMO ESTABA. No se anidan overlays
+ * (dos dialogs abiertos comparten el Escape) y no se toca el formulario, así
+ * que lo que hubieras tipeado sin guardar sigue ahí cuando volvés.
+ */
+const horariosTrigger = document.getElementById('profesional-horarios');
+const horariosResumen = document.getElementById('profesional-horarios-resumen');
+let volverAEditarAlCerrar = false;
+
+horariosTrigger.addEventListener('click', () => {
+  if (!editingItem) return;
+  volverAEditarAlCerrar = true;
+  dialog.close();
+  openHorarios(editingItem);
+});
+
+function renderResumenHorarios() {
+  if (!horariosResumen) return;
+  const lista = (editingItem && editingItem.horarios) || [];
+  if (lista.length === 0) {
+    // Mismo placeholder que los desplegables vacíos del formulario, no el itálico
+    // de "sin dato" de la tabla: acá es un campo sin completar, no un dato ausente.
+    horariosResumen.innerHTML = '<span class="ms-placeholder">Sin horarios cargados</span>';
+    return;
+  }
+  const chips = diasDeFranjas(lista).map((d) => `<span class="day-chip">${d.corto}</span>`).join('');
+  const cuenta = lista.length === 1 ? '1 franja' : `${lista.length} franjas`;
+  horariosResumen.innerHTML = `${chips}<span class="horarios-count">${cuenta}</span>`;
+}
+
+function cerrarHorarios() {
+  cerrarFormularioFranja();
+  horariosDialog.close();
+  if (!volverAEditarAlCerrar) return;
+  volverAEditarAlCerrar = false;
+  renderResumenHorarios();
+  dialog.open();
+}
 
 function diasDeFranjas(lista) {
   const ids = new Set((lista || []).map((f) => f.dia_semana));
@@ -686,5 +733,6 @@ function aplicarFranjas(lista) {
   franjas = lista;
   if (horariosItem) horariosItem.horarios = lista;
   renderFranjas();
+  renderResumenHorarios();
   controls.setRows(currentItems);
 }
