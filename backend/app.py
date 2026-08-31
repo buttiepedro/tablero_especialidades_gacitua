@@ -276,6 +276,27 @@ def login():
     return jsonify({'token': _generate_token(), 'expires_in': 12 * 60 * 60})
 
 
+def _horarios_heredados(especialidad):
+    """Una especialidad no tiene franjas propias: hereda las de los profesionales que la
+    atienden. Entra la franja atada a esta especialidad y tambien la generica (sin
+    especialidad), que vale para todo lo que el profesional atienda. Es el mismo criterio
+    con el que el bot resuelve "que dias hay <especialidad>" en buscar_horarios_profesional:
+    lo que se ve aca es exactamente lo que el bot puede contestar."""
+    heredados = []
+    for profesional in especialidad.profesionales:
+        for franja in profesional.horarios:
+            if franja.especialidad_id not in (None, especialidad.id):
+                continue
+            dato = _serialize_horario(franja)
+            dato['profesional'] = profesional.nombre
+            # La generica se muestra distinto: no es un horario de esta especialidad, es
+            # el horario de todo lo que atiende ese profesional.
+            dato['solo_esta_especialidad'] = franja.especialidad_id is not None
+            heredados.append(dato)
+    heredados.sort(key=lambda h: (h['profesional'].lower(), h['dia_semana'], h['hora_desde']))
+    return heredados
+
+
 def _serialize_especialidad(item):
     return {
         'id': item.id,
@@ -285,6 +306,7 @@ def _serialize_especialidad(item):
         'edad_min': item.edad_min,
         'edad_max': item.edad_max,
         'genero': item.genero,
+        'horarios': _horarios_heredados(item),
         'profesionales': [
             {'id': p.id, 'nombre': p.nombre}
             for p in sorted(item.profesionales, key=lambda p: p.nombre.lower())

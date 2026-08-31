@@ -1684,6 +1684,56 @@ form + .hint {
   opacity: 1;
 }
 
+/* En Especialidades las franjas son heredadas y de sólo lectura: ocupan el ancho
+   completo del panel de vínculos, debajo de profesionales y prácticas. */
+.links-section-wide {
+  grid-column: 1 / -1;
+}
+
+.horarios-heredados {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 0.875rem 1.5rem;
+}
+
+.horario-bloque {
+  display: flex;
+  flex-direction: column;
+  gap: 0.375rem;
+  min-width: 0;
+}
+
+.horario-prof {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--text);
+  text-decoration: none;
+}
+
+.horario-prof:hover {
+  color: var(--accent);
+}
+
+.horario-franjas {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.horario-franjas li {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.75rem;
+  color: var(--muted);
+}
+
 /* ── Dialog ── */
 .dialog-horarios {
   max-width: 560px;

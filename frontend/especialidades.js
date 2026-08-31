@@ -27,7 +27,18 @@ const generoSelect = tablero.createSelect(
   }
 );
 
-const COLUMNAS = 6;
+const COLUMNAS = 7;
+
+// Mismos nombres que en Profesionales: las dos tablas muestran las mismas franjas.
+const DIAS = [
+  { id: 1, corto: 'Lun', largo: 'Lunes' },
+  { id: 2, corto: 'Mar', largo: 'Martes' },
+  { id: 3, corto: 'Mié', largo: 'Miércoles' },
+  { id: 4, corto: 'Jue', largo: 'Jueves' },
+  { id: 5, corto: 'Vie', largo: 'Viernes' },
+  { id: 6, corto: 'Sáb', largo: 'Sábado' },
+  { id: 7, corto: 'Dom', largo: 'Domingo' },
+];
 
 // Config de las dos secciones del panel de vínculos. Comparten toda la lógica:
 // sólo cambian el endpoint, la página destino y de dónde sale el catálogo.
@@ -67,12 +78,19 @@ const expandidas = new Map();
 const controls = tablero.createTableControls({
   table: document.querySelector('.table-wrapper table'),
   searchInput,
-  searchFields: (item) => [item.especialidad, item.descripcion],
+  // Los días entran a la búsqueda: "martes" filtra a las especialidades que ese día se atienden.
+  searchFields: (item) => [
+    item.especialidad,
+    item.descripcion,
+    ...diasDeFranjas(item.horarios).map((d) => d.largo),
+  ],
   columns: {
     especialidad: (item) => item.especialidad,
     descripcion: (item) => item.descripcion || '',
     // Igual que en Profesionales: se ordena por edad minima, que es lo comparable.
     restricciones: (item) => (item.edad_min != null ? item.edad_min : (item.edad_max != null ? 0 : '')),
+    // Por profesionales con agenda cargada, que es lo que la celda muestra.
+    horarios: (item) => new Set((item.horarios || []).map((f) => f.profesional_id)).size,
   },
   onChange: renderTable,
 });
@@ -188,6 +206,7 @@ function renderTable(items) {
       </td>
       <td>${descCell}</td>
       <td>${formatRestricciones(item)}</td>
+      <td>${formatHorarios(item)}</td>
       <td>
         <label class="switch">
           <input type="checkbox" data-bot="${item.id}" ${item.atendido_por_bot ? 'checked' : ''} />
@@ -205,6 +224,11 @@ function renderTable(items) {
   });
   tableBody.querySelectorAll('button[data-expand]').forEach((button) => {
     button.addEventListener('click', () => toggleVinculos(Number(button.dataset.expand)));
+  });
+  // La celda de horarios es de sólo lectura: abre el mismo panel de la fila, donde
+  // están las franjas completas y el link para editarlas en Profesionales.
+  tableBody.querySelectorAll('button[data-horarios]').forEach((button) => {
+    button.addEventListener('click', () => toggleVinculos(Number(button.dataset.horarios)));
   });
   tableBody.querySelectorAll('button[data-edit]').forEach((button) => {
     const item = items.find((i) => String(i.id) === button.dataset.edit);
@@ -245,6 +269,33 @@ function formatRestricciones(item) {
     return '<p class="empty-value">Sin restricciones</p>';
   }
   return `<p class="desc-preview">${escapeHTML(parts.join(' \u00b7 '))}</p>`;
+}
+
+function diasDeFranjas(lista) {
+  const ids = new Set((lista || []).map((f) => f.dia_semana));
+  return DIAS.filter((d) => ids.has(d.id));
+}
+
+// Celda de la tabla: los días que se atiende la especialidad y cuántos profesionales
+// tienen agenda cargada. Las franjas no se cargan acá: se heredan de Profesionales.
+function formatHorarios(item) {
+  const lista = item.horarios || [];
+  const etiqueta = `Ver los horarios de ${escapeHTML(item.especialidad)}`;
+  if (lista.length === 0) {
+    return `
+      <button type="button" class="horarios-cell" data-horarios="${item.id}" aria-label="${etiqueta}">
+        <span class="empty-value">Sin horarios</span>
+      </button>`;
+  }
+  const chips = diasDeFranjas(lista)
+    .map((d) => `<span class="day-chip">${d.corto}</span>`)
+    .join('');
+  const profesionales = new Set(lista.map((f) => f.profesional_id)).size;
+  const cuenta = profesionales === 1 ? '1 profesional' : `${profesionales} profesionales`;
+  return `
+    <button type="button" class="horarios-cell" data-horarios="${item.id}" aria-label="${etiqueta}">
+      ${chips}<span class="horarios-count">${cuenta}</span>
+    </button>`;
 }
 
 function contarVinculos(item) {
@@ -314,6 +365,94 @@ function renderPanel(id, panel, abierta) {
   SECCIONES.forEach((seccion) => {
     panel.appendChild(renderSeccion(item, seccion, panel, abierta));
   });
+  panel.appendChild(renderHorarios(item));
+}
+
+// Los horarios de la especialidad son los de sus profesionales: se ven acá, se editan
+// en Profesionales. Entra la franja cargada para esta especialidad y también la
+// genérica del profesional, que vale para todo lo que atiende.
+function renderHorarios(item) {
+  const lista = item.horarios || [];
+  const wrapper = document.createElement('section');
+  wrapper.className = 'links-section links-section-wide';
+
+  const head = document.createElement('div');
+  head.className = 'links-head';
+  const titulo = document.createElement('h4');
+  titulo.className = 'links-title';
+  titulo.textContent = `Horarios de atención (${lista.length})`;
+  head.appendChild(titulo);
+  wrapper.appendChild(head);
+
+  if (lista.length === 0) {
+    const vacio = document.createElement('p');
+    vacio.className = 'empty-value';
+    vacio.textContent = (item.profesionales || []).length === 0
+      ? 'Sin profesionales vinculados, así que no hay horarios que heredar. El bot no informa horarios de esta especialidad: se fija directo en los turnos disponibles.'
+      : 'Ninguno de sus profesionales tiene horarios cargados. El bot no informa horarios de esta especialidad: se fija directo en los turnos disponibles.';
+    wrapper.appendChild(vacio);
+    return wrapper;
+  }
+
+  const cuerpo = document.createElement('div');
+  cuerpo.className = 'horarios-heredados';
+  agruparPorProfesional(lista).forEach((grupo) => {
+    cuerpo.appendChild(bloqueDeProfesional(grupo));
+  });
+  wrapper.appendChild(cuerpo);
+  return wrapper;
+}
+
+function agruparPorProfesional(lista) {
+  const grupos = new Map();
+  lista.forEach((franja) => {
+    const clave = franja.profesional_id;
+    if (!grupos.has(clave)) {
+      grupos.set(clave, { id: clave, nombre: franja.profesional, franjas: [] });
+    }
+    grupos.get(clave).franjas.push(franja);
+  });
+  return Array.from(grupos.values());
+}
+
+function bloqueDeProfesional(grupo) {
+  const bloque = document.createElement('div');
+  bloque.className = 'horario-bloque';
+
+  const link = document.createElement('a');
+  link.className = 'horario-prof';
+  link.href = `profesionales.html?edit=${grupo.id}`;
+  link.target = '_blank';
+  link.rel = 'noopener';
+  link.title = `Editar los horarios de ${grupo.nombre} en Profesionales`;
+  const nombre = document.createElement('span');
+  nombre.textContent = grupo.nombre;
+  const externo = document.createElement('span');
+  externo.className = 'chip-external';
+  externo.innerHTML = ICON_EXTERNAL;
+  link.append(nombre, externo);
+  bloque.appendChild(link);
+
+  const franjas = document.createElement('ul');
+  franjas.className = 'horario-franjas';
+  grupo.franjas.forEach((franja) => {
+    const li = document.createElement('li');
+    const dia = DIAS.find((d) => d.id === franja.dia_semana);
+    const chip = document.createElement('span');
+    chip.className = 'day-chip';
+    chip.textContent = dia ? dia.corto : `Día ${franja.dia_semana}`;
+    const detalle = document.createElement('span');
+    const partes = [`${franja.hora_desde} a ${franja.hora_hasta}`];
+    // La franja genérica no es de esta especialidad: es de todo lo que el profesional
+    // atiende, y conviene que se note para no leerla como agenda exclusiva.
+    if (!franja.solo_esta_especialidad) partes.push('todas sus especialidades');
+    if (franja.nota) partes.push(franja.nota);
+    detalle.textContent = partes.join(' · ');
+    li.append(chip, detalle);
+    franjas.appendChild(li);
+  });
+  bloque.appendChild(franjas);
+  return bloque;
 }
 
 function renderSeccion(item, seccion, panel, abierta) {
