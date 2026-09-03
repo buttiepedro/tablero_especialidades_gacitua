@@ -4,6 +4,7 @@ const logoutLink = document.getElementById('logout-link');
 const searchInput = document.getElementById('table-search');
 
 const newBtn = document.getElementById('new-practica-btn');
+const exportBtn = document.getElementById('export-practicas-btn');
 const dialogOverlay = document.getElementById('practica-dialog');
 const dialogTitle = document.getElementById('practica-dialog-title');
 const form = document.getElementById('practica-form');
@@ -61,6 +62,7 @@ function abrirDesdeURL() {
 }
 
 newBtn.addEventListener('click', () => openDialog(null));
+exportBtn.addEventListener('click', exportPracticas);
 cancelBtn.addEventListener('click', () => dialog.close());
 
 form.addEventListener('submit', async (event) => {
@@ -119,6 +121,36 @@ async function loadPracticas() {
     tableStatus.textContent = '';
     tablero.toast(err.message, { variant: 'error' });
   }
+}
+
+function exportPracticas() {
+  if (!window.XLSX) {
+    tablero.toast('No se pudo cargar el exportador de Excel.', { variant: 'error' });
+    return;
+  }
+  if (currentItems.length === 0) {
+    tablero.toast('No hay prácticas para exportar.', { variant: 'warning' });
+    return;
+  }
+
+  const rows = currentItems.map((item) => ({
+    Práctica: item.nombre,
+    Especialidades: (item.especialidades || []).join(', '),
+    Descripción: item.descripcion || '',
+    'Atendido por bot': item.atendido_por_bot ? 'Sí' : 'No',
+  }));
+  const worksheet = XLSX.utils.json_to_sheet(rows);
+  worksheet['!cols'] = [
+    { wch: 32 },
+    { wch: 36 },
+    { wch: 60 },
+    { wch: 18 },
+  ];
+  const workbook = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(workbook, worksheet, 'Prácticas');
+  const date = new Date().toISOString().slice(0, 10);
+  XLSX.writeFile(workbook, `practicas-${date}.xlsx`);
+  tablero.toast('Exportación lista', { description: `${rows.length} prácticas` });
 }
 
 function renderTable(items) {

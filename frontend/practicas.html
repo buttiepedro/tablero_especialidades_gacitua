@@ -31,6 +31,10 @@
         <p class="hint">
           Se sincronizan automáticamente con `POST /sync/practicas`, o las cargás a mano acá.
         </p>
+        <button type="button" class="secondary" id="export-practicas-btn" title="Descargar prácticas en formato Excel">
+          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12" /><path d="m7 10 5 5 5-5" /><path d="M5 21h14" /></svg>
+          Exportar XLSX
+        </button>
         <button type="button" id="new-practica-btn">+ Nueva práctica</button>
       </div>
       <div class="table-controls">
@@ -107,6 +111,7 @@
 
   <script src="config.js"></script>
   <script src="shared.js?v=20260826a"></script>
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
   <script src="practicas.js?v=20260825c"></script>
 </body>
 </html>
