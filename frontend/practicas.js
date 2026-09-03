@@ -155,12 +155,13 @@ function exportPracticas() {
       type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
     });
     const link = document.createElement('a');
-    link.href = URL.createObjectURL(blob);
+    const downloadUrl = URL.createObjectURL(blob);
+    link.href = downloadUrl;
     link.download = `practicas-${date}.xlsx`;
     document.body.appendChild(link);
     link.click();
     link.remove();
-    URL.revokeObjectURL(link.href);
+    setTimeout(() => URL.revokeObjectURL(downloadUrl), 1000);
     tablero.toast('Exportación lista', { description: `${rows.length} prácticas` });
   } catch (error) {
     console.error('Error al exportar prácticas:', error);
