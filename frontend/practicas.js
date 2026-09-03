@@ -139,18 +139,33 @@ function exportPracticas() {
     Descripción: item.descripcion || '',
     'Atendido por bot': item.atendido_por_bot ? 'Sí' : 'No',
   }));
-  const worksheet = XLSX.utils.json_to_sheet(rows);
-  worksheet['!cols'] = [
-    { wch: 32 },
-    { wch: 36 },
-    { wch: 60 },
-    { wch: 18 },
-  ];
-  const workbook = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(workbook, worksheet, 'Prácticas');
-  const date = new Date().toISOString().slice(0, 10);
-  XLSX.writeFile(workbook, `practicas-${date}.xlsx`);
-  tablero.toast('Exportación lista', { description: `${rows.length} prácticas` });
+  try {
+    const worksheet = XLSX.utils.json_to_sheet(rows);
+    worksheet['!cols'] = [
+      { wch: 32 },
+      { wch: 36 },
+      { wch: 60 },
+      { wch: 18 },
+    ];
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, 'Prácticas');
+    const date = new Date().toISOString().slice(0, 10);
+    const content = XLSX.write(workbook, { bookType: 'xlsx', type: 'array' });
+    const blob = new Blob([content], {
+      type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    });
+    const link = document.createElement('a');
+    link.href = URL.createObjectURL(blob);
+    link.download = `practicas-${date}.xlsx`;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(link.href);
+    tablero.toast('Exportación lista', { description: `${rows.length} prácticas` });
+  } catch (error) {
+    console.error('Error al exportar prácticas:', error);
+    tablero.toast('No se pudo generar el archivo XLSX.', { variant: 'error' });
+  }
 }
 
 function renderTable(items) {
